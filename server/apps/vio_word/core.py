@@ -14,9 +14,9 @@ from robyn import Response, status_codes
 async def init_model():
     try:
         model = ChatOpenAI(
-            openai_api_key="sk-7811d7f9986044648e1d287d092d4306",
-            openai_api_base="https://api.deepseek.com",
-            model_name="deepseek-chat",
+            openai_api_key="31711a19-2c64-4337-a7b1-70be31e1fdd2",
+            openai_api_base="https://ark.cn-beijing.volces.com/api/v3",
+            model_name="doubao-pro-32k-241215",
             temperature=0.7,
             streaming=True
         )

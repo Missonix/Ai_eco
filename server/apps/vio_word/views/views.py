@@ -16,6 +16,13 @@ async def vio_check(request: Request) -> Response:
     """传入话术，返回违规词检测结果"""
     request = request.json()
     input = request.get("input")
+    # 判断输入字符长度
+    if len(input) > 120:
+        return Response(
+            status_code=400,
+            headers={"Content-Type": "application/json"},
+            description=json.dumps({"code": 400, "message": "输入字符长度不要超过120哦"})
+        )
 
     usr_id = request.get("user_id")
     async with AsyncSessionLocal() as db:

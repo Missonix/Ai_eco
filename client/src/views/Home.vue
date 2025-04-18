@@ -112,10 +112,24 @@ import { ref } from 'vue'
 import axios from 'axios'
 import { useRouter } from 'vue-router'
 
+interface CheckResult {
+  is_Violations: string
+  old_score: number
+  old_rating: string
+  new_score: number
+  new_rating: string
+  words?: string
+  reason?: string
+  optimization1?: string
+  optimization2?: string
+  optimization3?: string
+  ideas?: string
+}
+
 const router = useRouter()
 const inputText = ref('')
 const loading = ref(false)
-const checkResult = ref(null)
+const checkResult = ref<CheckResult | null>(null)
 
 // 开始检测
 const startCheck = async () => {
@@ -152,15 +166,15 @@ const startCheck = async () => {
       alert(response.data.message)
       router.push('/user') // 跳转到用户页面查看剩余次数
     } else {
-      throw new Error(response.data.message || '检测失败')
+      alert(response.data.message || '检测失败')
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('检测失败:', error)
     if (error.response?.data?.code === 403) {
       alert('使用次数不足')
       router.push('/user')
     } else {
-      alert('检测失败，请稍后重试')
+      alert(error.response?.data?.message || '检测失败，请稍后重试')
     }
   } finally {
     loading.value = false
