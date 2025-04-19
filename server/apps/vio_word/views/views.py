@@ -25,15 +25,15 @@ async def vio_check(request: Request) -> Response:
         )
 
     usr_id = request.get("user_id")
-    async with AsyncSessionLocal() as db:
-        user_obj = await get_user(db, usr_id)
-        usage_count = user_obj.usage_count 
-        if usage_count == 0:
-            return Response(
-                status_code=403,
-                headers={"Content-Type": "application/json"},
-                description=json.dumps({"code": 403, "message": "使用次数不足"})
-            )
+    # async with AsyncSessionLocal() as db:
+    #     user_obj = await get_user(db, usr_id)
+    #     usage_count = user_obj.usage_count 
+    #     if usage_count == 0:
+    #         return Response(
+    #             status_code=403,
+    #             headers={"Content-Type": "application/json"},
+    #             description=json.dumps({"code": 403, "message": "使用次数不足"})
+    #         )
 
     result = await vio_word_check(input)  # 正确等待异步函数的结果
     if result == False:
@@ -50,9 +50,9 @@ async def vio_check(request: Request) -> Response:
             description=json.dumps(response_data)
         )
     
-    usage_count -= 1
-    async with AsyncSessionLocal() as db:
-        await update_user(db, usr_id, {"usage_count": usage_count})
+    # usage_count -= 1
+    # async with AsyncSessionLocal() as db:
+    #     await update_user(db, usr_id, {"usage_count": usage_count})
 
 
     # 构建标准响应格式
@@ -60,8 +60,7 @@ async def vio_check(request: Request) -> Response:
         "code": 200,
         "message": "success",
         "data": {
-            "result": result,
-            "usage_count": usage_count
+            "result": result
         }
     }
     

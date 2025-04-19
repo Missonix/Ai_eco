@@ -2,6 +2,7 @@ import asyncio
 from core.database import Base, engine
 # 必须导入所有模型
 from apps.users.models import User
+from apps.business.models import Courses, Entitlement_rules, Orders, User_entitlements, Ai_products
 
 """
 创建 初始化asyncio数据库

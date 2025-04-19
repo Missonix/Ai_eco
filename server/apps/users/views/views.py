@@ -8,12 +8,8 @@ from apps.users.services import (
     login_user,
     refresh_token,
     logout_user,
-    register_precheck_and_send_verification,
-    verify_and_register,
-    send_verification_code_by_email,
-    login_user_by_email,
-    forgot_password_by_email,
-    get_userinfo
+    get_userinfo,
+    register
 )
 from core.middleware import error_handler, request_logger, auth_required, admin_required, rate_limit, auth_userinfo
 from core.logger import setup_logger
@@ -24,20 +20,9 @@ logger = setup_logger('user_views')
 @error_handler
 @request_logger
 @rate_limit(max_requests=5, time_window=60)  # 每分钟最多5次注册请求
-async def register_precheck(request: Request) -> Response:
-    """注册预检查并发送验证码"""
-    return await register_precheck_and_send_verification(request)
-
-
-@error_handler
-@request_logger
-@rate_limit(max_requests=20, time_window=60)  # 1分钟最多20次请求
-async def verify_and_register_user(request: Request) -> Response:
-    """
-    验证码验证并注册用户
-    """
-    return await verify_and_register(request)
-
+async def register_check(request: Request) -> Response:
+    """注册"""
+    return await register(request)
 
 @error_handler
 @request_logger
@@ -46,21 +31,6 @@ async def login(request: Request) -> Response:
     """用户密码登录"""
 
     return await login_user(request)
-
-@error_handler
-@request_logger
-@rate_limit(max_requests=1, time_window=60)  # 每分钟最多1次登录尝试
-async def send_verification_code_email(request: Request) -> Response:
-    """发送验证码"""
-    return await send_verification_code_by_email(request)
-
-@error_handler
-@request_logger
-@rate_limit(max_requests=10, time_window=60)  # 每分钟最多1次登录尝试
-async def login_by_email(request: Request) -> Response:
-    """邮箱登录"""
-    return await login_user_by_email(request)
-
 
 @error_handler
 @request_logger
@@ -76,13 +46,15 @@ async def logout(request: Request) -> Response:
     """用户登出"""
     return await logout_user(request)
 
+# @error_handler
+# @request_logger
+# @rate_limit(max_requests=5, time_window=60)  # 每分钟最多5次忘记密码请求
+# async def forgot_password(request: Request) -> Response:
+#     """忘记密码"""
+#     return await forgot_password_by_email(request)
 
-@error_handler
-@request_logger
-@rate_limit(max_requests=5, time_window=60)  # 每分钟最多5次忘记密码请求
-async def forgot_password(request: Request) -> Response:
-    """忘记密码"""
-    return await forgot_password_by_email(request)
+
+
 
 @error_handler
 @request_logger

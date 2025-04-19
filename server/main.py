@@ -8,7 +8,7 @@ from settings import configure_cors
 from core.cache import Cache
 from core.logger import setup_logger
 import asyncio
-
+from apps.business.api_routes import business_api_routes # 导入业务接口路由
 # 设置日志记录器
 logger = setup_logger('main')
 
@@ -25,6 +25,8 @@ configure_cors(app)
 # 注册用户服务接口路由
 users_api_routes(app)
 
+# 注册业务服务接口路由
+business_api_routes(app)
 
 # 注册用户服务视图路由
 users_view_routes(app)

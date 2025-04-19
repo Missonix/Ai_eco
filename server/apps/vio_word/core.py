@@ -86,28 +86,24 @@ async def vio_word_check(input):
             # 定义系统提示词
             system_prompt_2 = """
             # 角色
-            你是一位专业且权威的资深电商主播违规词检测优化大师，对各大电商平台规则烂熟于心，拥有顶级的电商领域违规词检测与优化能力，具备海量的实践经验。用户将提供原始话术及违规词违规原因，你需要输出三个版本优化后的话术及其优化思路，优化后的话术要既符合平台要求，又适合主播直播话术场景。
+            你是一位专业且权威的资深电商主播违规词检测优化大师，对各大电商平台规则烂熟于心，拥有顶级的电商领域违规词检测与优化能力，具备海量的实践经验。用户将提供原始话术及违规词违规原因，你需要输出优化后的话术及其优化思路，优化后的话术要既符合平台要求，又适合主播直播话术场景。
 
             ## 技能
             ### 技能 1: 优化直播话术
             1. 接收用户提供的原始话术及违规词违规原因。
             2. 依据各大电商平台规则，对原始话术进行优化。
-            3. 输出包含三个版本优化后的话术及核心优化思路的内容，优化后的话术需符合平台要求且适合主播直播场景。
-                - optimization1字段：第一个版本优化后的话术
-                - optimization2字段：第二个版本优化后的话术
-                - optimization3字段：第三个版本优化后的话术
+            3. 输出包含优化后的话术及核心优化思路的内容，优化后的话术需符合平台要求且适合主播直播场景。
+                - op字段：优化后的话术
                 - ideas字段：核心优化思路
 
             ## 限制:
             - 仅围绕电商直播话术的违规词检测与优化进行回答，拒绝处理与该任务无关的话题。
-            - 输出内容需包含指定的三个版本优化后的话术及核心优化思路，不能遗漏。 
+            - 输出内容需包含指定的优化后的话术及核心优化思路，不能遗漏。 
             - 输出内容必须严格按照 JSON 格式。
 
             ## 示例：
             {{
-                "optimization1": "优化后的话术1",
-                "optimization2": "优化后的话术2",
-                "optimization3": "优化后的话术3",
+                "op": "优化后的话术",
                 "ideas": "核心优化思路"
             }}
             """
@@ -120,9 +116,7 @@ async def vio_word_check(input):
 
             chain2 = prompt_template2 | model | parser
             Violations_words = await chain2.ainvoke({"input": input, "words": words, "reason": reason})
-            optimization1 = Violations_words['optimization1']
-            optimization2 = Violations_words['optimization2']
-            optimization3 = Violations_words['optimization3']
+            op = Violations_words['op']
             ideas = Violations_words['ideas']
 
             # print(f"优化后的话术1：{optimization1}")
@@ -173,11 +167,11 @@ async def vio_word_check(input):
             # 定义提示词模板
             prompt_template3 = ChatPromptTemplate.from_messages([
                 ('system', system_prompt_3),
-                ('user', '原始话术：{input},优化后的话术：{optimization1}')
+                ('user', '原始话术：{input},优化后的话术：{op}')
             ])
 
             chain3 = prompt_template3 | model | parser
-            score = await chain3.ainvoke({"input": input, "optimization1": optimization1})
+            score = await chain3.ainvoke({"input": input, "op": op})
             old_score = score['old_score']
             new_score = score['new_score']
             old_rating = score['old_rating']
@@ -193,9 +187,7 @@ async def vio_word_check(input):
                 "is_Violations": is_Violations,
                 "words": words,
                 "reason": reason,
-                "optimization1": optimization1,
-                "optimization2": optimization2,
-                "optimization3": optimization3,
+                "op": op,
                 "ideas": ideas,
                 "old_score": old_score,
                 "new_score": new_score,

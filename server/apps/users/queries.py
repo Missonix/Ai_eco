@@ -31,35 +31,6 @@ async def get_user_by_id(request):
         print(f"Error: {e}")
         return ApiResponse.error(message="获取用户失败", status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR)
     
-async def get_user_by_username(username):
-    """
-    通过用户名获取单个用户
-    """
-    try:
-        async with AsyncSessionLocal() as db:
-            user_obj = await crud.get_user_by_filter(db, {"username": username})
-            if not user_obj:
-                return ApiResponse.not_found("用户不存在")
-            return ApiResponse.success(data=user_obj.to_dict())
-    except Exception as e:
-        print(f"Error: {e}")
-        return ApiResponse.error(message="获取用户失败", status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR)
-
-async def get_user_by_email(email: str) -> Response:
-    """通过邮箱获取用户"""
-    try:
-        async with AsyncSessionLocal() as db:
-            user = await crud.get_user_by_filter(db, {"email": email})
-            if not user:
-                logger.warning(f"User not found with email: {email}")
-                return ApiResponse.not_found("用户不存在")
-            
-            user_dict = user.to_dict()
-            logger.debug(f"User data retrieved: {user_dict}")
-            return ApiResponse.success(data=user_dict)
-    except Exception as e:
-        logger.error(f"Error getting user by email: {str(e)}")
-        return ApiResponse.error("获取用户信息失败")
 
 async def get_user_by_phone(phone: str) -> Response:
     """通过手机号获取用户"""
@@ -80,13 +51,11 @@ async def get_user_by_phone(phone: str) -> Response:
 async def get_user(userdata):
     """
     通用动态查询
-    通过用户ID、邮箱、用户名、手机号查询用户
+    通过用户ID、手机号查询用户
     """
     try:
         async with AsyncSessionLocal() as db:
             user_obj = (await crud.get_user(db, userdata) or 
-                       await crud.get_user_by_filter(db, {"username": userdata}) or 
-                       await crud.get_user_by_filter(db, {"email": userdata}) or 
                        await crud.get_user_by_filter(db, {"phone": userdata}))
             
             if not user_obj:
@@ -96,21 +65,6 @@ async def get_user(userdata):
         print(f"Error: {e}")
         return ApiResponse.error(message="获取用户失败", status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR)
 
-async def fuzzy_search_user(account):
-    """
-    账号匹配用户
-    """
-    try:
-        async with AsyncSessionLocal() as db:
-            user_obj = (await crud.get_user_by_filter(db, {"username": account}) or 
-                       await crud.get_user_by_filter(db, {"email": account}) or 
-                       await crud.get_user_by_filter(db, {"phone": account}))
-            if not user_obj:
-                return ApiResponse.not_found("用户不存在")
-            return ApiResponse.success(data=user_obj.to_dict())
-    except Exception as e:
-        print(f"Error: {e}")
-        return ApiResponse.error(message="模糊搜索用户失败", status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR)
 
 async def get_users_service(request):
     """

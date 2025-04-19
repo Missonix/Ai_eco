@@ -2,16 +2,12 @@ from robyn import Request
 from apps.users.api import (
     create_user_api,
     get_all_users_api,
-    get_user_by_email_api,
     get_user_by_phone_api,
-    get_user_by_username_api,
     get_users_api,
     get_user_api,
     update_user_api,
     delete_user_api,
-    fuzzy_search_user_api,
     update_user_field_api,
-    get_user_ip_history_api,
     get_token_api,
     check_token_api
 )
@@ -44,25 +40,6 @@ def users_api_routes(app):
         """
         return await get_user_api(request)
     
-    @app.get("/api/users/username/:username")
-    @error_handler
-    @request_logger
-    @rate_limit(max_requests=100, time_window=60)
-    async def user_get_by_username(request):
-        """
-        通过用户名获取单个用户
-        """
-        return await get_user_by_username_api(request)
-    
-    @app.get("/api/users/email/:email")
-    @error_handler
-    @request_logger
-    @rate_limit(max_requests=100, time_window=60)
-    async def user_get_by_email(request):
-        """
-        通过邮箱获取单个用户
-        """
-        return await get_user_by_email_api(request)
     
     @app.get("/api/users/phone/:phone")
     @error_handler
@@ -73,17 +50,6 @@ def users_api_routes(app):
         通过手机号获取单个用户
         """
         return await get_user_by_phone_api(request)
-    
-    @app.get("/api/users/ip_history/:user_id")
-    @error_handler
-    @request_logger
-    @rate_limit(max_requests=100, time_window=60)
-    async def user_ip_history(request):
-        """
-        获取用户IP地址历史
-        """
-        return await get_user_ip_history_api(request)
-
 
     @app.post("/api/users")
     @error_handler

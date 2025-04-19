@@ -83,9 +83,9 @@
           <div class="space-y-4">
             <div class="font-medium">优化建议:</div>
             <div v-for="(suggestion, index) in [
-              checkResult.optimization1,
-              checkResult.optimization2,
-              checkResult.optimization3
+              checkResult.op,
+              // checkResult.optimization2,
+              // checkResult.optimization3
             ]" :key="index" class="bg-green-50 p-3 rounded-lg text-sm text-gray-600">
               {{ suggestion }}
             </div>
@@ -120,9 +120,9 @@ interface CheckResult {
   new_rating: string
   words?: string
   reason?: string
-  optimization1?: string
-  optimization2?: string
-  optimization3?: string
+  op?: string
+  // optimization2?: string
+  // optimization3?: string
   ideas?: string
 }
 
