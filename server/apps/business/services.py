@@ -22,6 +22,7 @@ from apps.business.utils import (
     generate_order_id,
     generate_entitlement_id
 )
+import asyncio
 
 # 设置日志记录器
 logger = setup_logger('business_services')
@@ -487,12 +488,15 @@ async def create_entitlement_rule_service(request):
                     message="该课程和AI产品的组合已存在",
                     status_code=status_codes.HTTP_409_CONFLICT
                 )
-            
+
             # 设置默认值
             if "daily_limit" not in request_data:
                 request_data["daily_limit"] = 5
             if "validity_days" not in request_data:
                 request_data["validity_days"] = 30
+
+            request_data["product_name"] = ai_product.ai_product_name
+            request_data["course_name"] = course.course_name
             
             # 生成权益规则ID
             request_data["rule_id"] = generate_rule_id()
@@ -536,6 +540,30 @@ async def update_entitlement_rule_service(request):
                 return ApiResponse.not_found("权益规则不存在")
             
             try:
+                if "product_name" in request_data:
+                    ai_product = await business_crud.get_ai_product_by_filter(db, {"ai_product_name": request_data["product_name"]})
+                    if not ai_product:
+                        return ApiResponse.not_found("AI产品不存在")
+                    request_data["product_name"] = ai_product.ai_product_name
+                    request_data["ai_product_id"] = ai_product.ai_product_id
+                if "ai_product_id" in request_data:
+                    ai_product = await business_crud.get_ai_product(db, request_data["ai_product_id"])
+                    if not ai_product:
+                        return ApiResponse.not_found("AI产品不存在")
+                    request_data["product_name"] = ai_product.ai_product_name
+
+                if "course_name" in request_data:
+                    course = await business_crud.get_course_by_filter(db, {"course_name": request_data["course_name"]})
+                    if not course:
+                        return ApiResponse.not_found("课程不存在")
+                    request_data["course_id"] = course.course_id
+                    request_data["course_name"] = course.course_name
+                if "course_id" in request_data:
+                    course = await business_crud.get_course(db, request_data["course_id"])
+                    if not course:
+                        return ApiResponse.not_found("课程不存在")
+                    request_data["course_name"] = course.course_name
+
                 updated_rule = await business_crud.update_entitlement_rule(db, rule_id, request_data)
                 return ApiResponse.success(
                     data=updated_rule.to_dict(),
@@ -547,7 +575,7 @@ async def update_entitlement_rule_service(request):
                     message="更新权益规则失败",
                     status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
                 )
-                
+
     except Exception as e:
         logger.error(f"更新权益规则服务异常: {str(e)}")
         return ApiResponse.error(
@@ -615,6 +643,10 @@ async def get_entitlement_rules_by_filter_service(request):
             filters["course_id"] = request_data["course_id"]
         if "ai_product_id" in request_data:
             filters["ai_product_id"] = request_data["ai_product_id"]
+        if "course_name" in request_data:
+            filters["course_name"] = request_data["course_name"]
+        if "product_name" in request_data:
+            filters["product_name"] = request_data["product_name"]
         if "daily_limit" in request_data:
             filters["daily_limit"] = request_data["daily_limit"]
         if "validity_days" in request_data:
@@ -974,6 +1006,7 @@ async def create_user_entitlement_service(request):
             if not rule:
                 return ApiResponse.not_found("权益规则不存在")
             
+            
             # 计算权益有效期
             start_date = datetime.utcnow()
             end_date = start_date + timedelta(days=rule.validity_days)
@@ -983,8 +1016,11 @@ async def create_user_entitlement_service(request):
                 "entitlement_id": generate_entitlement_id(),
                 "phone": phone,
                 "rule_id": rule_id,
+                "course_name": rule.course_name,
+                "product_name": rule.product_name,
                 "start_date": start_date,
                 "end_date": end_date,
+                "is_active": False,
                 "daily_remaining": rule.daily_limit,
                 "is_deleted": False
             }
@@ -1058,7 +1094,7 @@ async def update_user_entitlement_service(request):
             return ApiResponse.validation_error("请求数据不能为空")
             
         # 只允许更新特定字段
-        allowed_fields = ["phone", "rule_id", "end_date", "daily_remaining"]
+        allowed_fields = ["phone", "rule_id", "end_date", "daily_remaining", "is_active"]
         update_data = {k: v for k, v in request_data.items() if k in allowed_fields}
         
         if not update_data:
@@ -1075,6 +1111,12 @@ async def update_user_entitlement_service(request):
                 rule = await business_crud.get_entitlement_rule(db, update_data["rule_id"])
                 if not rule:
                     return ApiResponse.not_found("权益规则不存在")
+                update_data["product_name"] = rule.product_name
+                
+            # 如果更新is_active，解析is_active为布尔值
+            if "is_active" in update_data:
+                is_active = True if update_data["is_active"] == "True" or update_data["is_active"] == "true" or update_data["is_active"] == "1" else False
+                update_data["is_active"] = is_active
             
             try:
                 updated_entitlement = await business_crud.update_user_entitlement(db, entitlement_id, update_data)
@@ -1158,6 +1200,10 @@ async def get_user_entitlements_by_filter_service(request):
             filters["phone"] = request_data["phone"]
         if "rule_id" in request_data:
             filters["rule_id"] = request_data["rule_id"]
+        if "course_name" in request_data:
+            filters["course_name"] = request_data["course_name"]
+        if "product_name" in request_data:
+            filters["product_name"] = request_data["product_name"]
         if "start_date" in request_data:
             try:
                 start_date = datetime.strptime(request_data["start_date"], "%Y-%m-%d %H:%M:%S")
@@ -1174,6 +1220,9 @@ async def get_user_entitlements_by_filter_service(request):
                 return ApiResponse.validation_error("结束日期格式错误，应为'YYYY-MM-DD HH:MM:SS'格式")
         if "daily_remaining" in request_data:
             filters["daily_remaining"] = request_data["daily_remaining"]
+        if "is_active" in request_data:
+            filters["is_active"] = request_data["is_active"]
+
             
         # 添加未删除的过滤条件
         filters["is_deleted"] = False
@@ -1197,6 +1246,228 @@ async def get_user_entitlements_by_filter_service(request):
             status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
         )
     
+
+
+
+
+async def sync_orders_to_entitlements_service(max_retries=3):
+    """
+    每日同步订单到用户权益服务
+    在每日13:00执行，处理昨日13:00至今日13:00的新订单记录
+    
+    Args:
+        max_retries (int): 最大重试次数，默认为3次
+    """
+    try:
+        # 计算时间范围
+        now = datetime.utcnow()
+        today_13 = now.replace(hour=13, minute=0, second=0, microsecond=0)
+        yesterday_13 = today_13 - timedelta(days=1)
+        
+        # 初始化统计信息
+        stats = {
+            "total_processed": 0,
+            "created_entitlements": 0,
+            "deleted_entitlements": 0,
+            "failed_records": []
+        }
+        
+        async with AsyncSessionLocal() as db:
+            # 查询指定时间范围内的新订单
+            filters = {
+                "created_at": {
+                    "gte": yesterday_13,
+                    "lt": today_13
+                },
+                "is_deleted": False
+            }
+            new_orders = await business_crud.get_orders_by_filters(db, filters)
+            
+            if not new_orders:
+                logger.info("没有需要处理的新订单")
+                return stats
+            
+            for order in new_orders:
+                retry_count = 0
+                success = False
+                
+                while retry_count < max_retries and not success:
+                    try:
+                        # 记录订单信息
+                        order_info = {
+                            "order_id": order.order_id,
+                            "phone": order.phone,
+                            "course_id": order.course_id,
+                            "purchase_time": order.purchase_time,
+                            "is_refund": order.is_refund,
+                            "created_at": order.created_at,
+                            "is_deleted": order.is_deleted
+                        }
+                        logger.info(f"开始处理订单: {order_info}")
+                        
+                        if not order.is_refund:
+                            # 处理未退款的订单，创建用户权益
+                            # 查询对应的权益规则
+                            rule_filters = {
+                                "course_id": order.course_id,
+                                "is_deleted": False
+                            }
+                            rule = await business_crud.get_entitlement_rule_by_filter(db, rule_filters)
+                            
+                            if not rule:
+                                logger.warning(f"未找到课程ID {order.course_id} 对应的权益规则")
+                                stats["failed_records"].append({
+                                    "order": order_info,
+                                    "error": "未找到对应的权益规则"
+                                })
+                                break
+                            
+                            # 检查是否已存在相同的用户权益
+                            entitlement_filters = {
+                                "phone": order.phone,
+                                "rule_id": rule.rule_id,
+                                "is_deleted": False
+                            }
+                            existing_entitlement = await business_crud.get_user_entitlement_by_filter(db, entitlement_filters)
+                            
+                            if existing_entitlement:
+                                logger.info(f"用户 {order.phone} 已存在相同的权益记录")
+                                success = True
+                                break
+                            
+                            # 创建新的用户权益
+                            start_date = datetime.utcnow()
+                            end_date = start_date + timedelta(days=rule.validity_days)
+                            
+                            entitlement_data = {
+                                "entitlement_id": generate_entitlement_id(),
+                                "phone": order.phone,
+                                "rule_id": rule.rule_id,
+                                "start_date": start_date,
+                                "end_date": end_date,
+                                "is_active": False,
+                                "daily_remaining": rule.daily_limit,
+                                "is_deleted": False
+                            }
+                            
+                            await business_crud.create_user_entitlement(db, entitlement_data)
+                            logger.info(f"为用户 {order.phone} 创建权益记录成功")
+                            stats["created_entitlements"] += 1
+                            success = True
+                            
+                        else:
+                            # 处理已退款的订单，删除对应的用户权益
+                            # 查询对应的权益规则
+                            rule_filters = {
+                                "course_id": order.course_id,
+                                "is_deleted": False
+                            }
+                            rule = await business_crud.get_entitlement_rule_by_filter(db, rule_filters)
+                            
+                            if not rule:
+                                logger.warning(f"未找到课程ID {order.course_id} 对应的权益规则")
+                                stats["failed_records"].append({
+                                    "order": order_info,
+                                    "error": "未找到对应的权益规则"
+                                })
+                                break
+                            
+                            # 查询并删除对应的用户权益
+                            entitlement_filters = {
+                                "phone": order.phone,
+                                "rule_id": rule.rule_id,
+                                "is_deleted": False
+                            }
+                            entitlement = await business_crud.get_user_entitlement_by_filter(db, entitlement_filters)
+                            
+                            if entitlement:
+                                await business_crud.update_user_entitlement(db, entitlement.entitlement_id, {"is_deleted": True})
+                                logger.info(f"已删除用户 {order.phone} 的权益记录")
+                                stats["deleted_entitlements"] += 1
+                                success = True
+                            else:
+                                logger.warning(f"未找到用户 {order.phone} 对应的权益记录")
+                                success = True  # 视为成功，因为可能已经删除
+                                
+                    except Exception as e:
+                        retry_count += 1
+                        error_msg = f"处理订单 {order.order_id} 时发生错误: {str(e)}"
+                        logger.error(error_msg)
+                        
+                        if retry_count >= max_retries:
+                            stats["failed_records"].append({
+                                "order": order_info,
+                                "error": error_msg,
+                                "retry_count": retry_count
+                            })
+                            break
+                        
+                        # 等待一段时间后重试
+                        await asyncio.sleep(2 ** retry_count)  # 指数退避
+                        continue
+                
+                stats["total_processed"] += 1
+                
+            # 记录最终统计信息
+            logger.info(f"""
+            订单同步到用户权益处理完成:
+            总处理记录数: {stats["total_processed"]}
+            新创建权益记录数: {stats["created_entitlements"]}
+            删除权益记录数: {stats["deleted_entitlements"]}
+            处理失败记录数: {len(stats["failed_records"])}
+            """)
+            
+            if stats["failed_records"]:
+                logger.warning("处理失败的记录:")
+                for record in stats["failed_records"]:
+                    logger.warning(f"订单ID: {record['order']['order_id']}, 错误: {record['error']}")
+            
+            return stats
+            
+    except Exception as e:
+        logger.error(f"同步订单到用户权益服务异常: {str(e)}")
+        raise
+
+async def update_daily_remaining_service():
+    """
+    每日更新用户权益剩余额度服务
+    在每日0:00执行，将所有用户权益的daily_remaining更新为对应权益规则的daily_limit
+    """
+    try:
+        async with AsyncSessionLocal() as db:
+            # 获取所有未删除的用户权益
+            entitlements = await business_crud.get_user_entitlements_by_filters(db, {"is_deleted": False})
+            
+            if not entitlements:
+                logger.info("没有需要更新的用户权益")
+                return
+            
+            update_count = 0
+            for entitlement in entitlements:
+                try:
+                    # 获取对应的权益规则
+                    rule = await business_crud.get_entitlement_rule(db, entitlement.rule_id)
+                    if not rule:
+                        logger.warning(f"未找到用户权益 {entitlement.entitlement_id} 对应的权益规则")
+                        continue
+                    
+                    # 更新daily_remaining为规则的daily_limit
+                    await business_crud.update_user_entitlement(
+                        db, 
+                        entitlement.entitlement_id, 
+                        {"daily_remaining": rule.daily_limit}
+                    )
+                    update_count += 1
+                    
+                except Exception as e:
+                    logger.error(f"更新用户权益 {entitlement.entitlement_id} 失败: {str(e)}")
+                    continue
+            
+            logger.info(f"每日额度更新完成，共更新 {update_count} 条记录")
+            
+    except Exception as e:
+        logger.error(f"每日更新用户权益剩余额度服务异常: {str(e)}")
+        raise
 
 
 

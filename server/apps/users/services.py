@@ -26,7 +26,7 @@ logger = setup_logger('user_services')
 # 登录
 async def login_user(request):
     """
-    用户名登录用户
+    登录用户
     """
     try:
         request_data = request.json()
@@ -51,14 +51,31 @@ async def login_user(request):
                 )
 
             
-            # 更新用户IP地址和登录时间
+            # 更新用户登录时间
             await crud.update_user(db, user.user_id, {"last_login": datetime.utcnow()})
-            
-            # 生成Token
-            token_data = {
-                "user_id": user.user_id,
-                "phone": user.phone
-            }
+            from apps.business import crud as business_crud
+            # 根据phone查询用户权益表
+            async with AsyncSessionLocal() as db:
+                user_entitlements = await business_crud.get_user_entitlements_by_filters(db, {"phone": phone, "is_deleted": False})
+                if user_entitlements:
+                    # 生成Token
+                    token_data = {
+                        "user_id": user.user_id,
+                        "phone": user.phone,
+                        "entitlements": [
+                            {
+                                "entitlement_id": entitlement.entitlement_id,
+                                "rule_id": entitlement.rule_id,
+                                "course_name": entitlement.course_name,
+                                "product_name": entitlement.product_name,
+                                "start_date": entitlement.start_date.isoformat() if entitlement.start_date else None,
+                                "end_date": entitlement.end_date.isoformat() if entitlement.end_date else None,
+                                "daily_remaining": entitlement.daily_remaining,
+                                "is_active": entitlement.is_active
+                            }
+                            for entitlement in user_entitlements
+                        ]
+                    }
             
             # 创建访问令牌
             access_token = TokenService.create_access_token(token_data)
@@ -69,7 +86,20 @@ async def login_user(request):
                 data={
                     "user_id": user.user_id,
                     "phone": user.phone,
-                    "access_token": access_token
+                    "access_token": access_token,
+                    "entitlements": [
+                        {
+                            "entitlement_id": entitlement.entitlement_id,
+                            "rule_id": entitlement.rule_id,
+                            "course_name": entitlement.course_name,
+                            "product_name": entitlement.product_name,
+                            "start_date": entitlement.start_date.isoformat() if entitlement.start_date else None,
+                            "end_date": entitlement.end_date.isoformat() if entitlement.end_date else None,
+                            "daily_remaining": entitlement.daily_remaining,
+                            "is_active": entitlement.is_active
+                        }
+                        for entitlement in user_entitlements
+                    ]
                 }
             )
             
@@ -169,23 +199,60 @@ async def register(request):
                     logger.info(f"Created new user with ID: {new_user.user_id if new_user else 'None'}")
 
                     if new_user and new_user.user_id:
-
-                        # 生成Token
-                        token_data = {
-                            "user_id": new_user.user_id,
-                            "phone": new_user.phone
-                        }
+                        from apps.business import crud as business_crud
+                        # 根据phone查询用户权益表
+                        async with AsyncSessionLocal() as db:
+                            user_entitlements = await business_crud.get_user_entitlements_by_filters(db, {"phone": phone, "is_deleted": False})
+                            if user_entitlements:
+                                # 更新用户权益表的is_active为True
+                                for entitlement in user_entitlements:
+                                    await business_crud.update_user_entitlement(db, entitlement.entitlement_id, {"is_active": True})
+                                # 生成Token
+                                token_data = {
+                                    "user_id": new_user.user_id,
+                                    "phone": new_user.phone,
+                                    "entitlements": [
+                                        {
+                                            "entitlement_id": entitlement.entitlement_id,
+                                            "rule_id": entitlement.rule_id,
+                                            "course_name": entitlement.course_name,
+                                            "product_name": entitlement.product_name,
+                                            "start_date": entitlement.start_date.isoformat() if entitlement.start_date else None,
+                                            "end_date": entitlement.end_date.isoformat() if entitlement.end_date else None,
+                                            "daily_remaining": entitlement.daily_remaining,
+                                            "is_active": True
+                                        }
+                                        for entitlement in user_entitlements
+                                    ]
+                                }
+                            else:
+                                logger.error("User creation returned None or invalid user")
+                                await db.rollback()
+                                return ApiResponse.error("请先购买权益")
 
                         # 创建访问令牌和刷新令牌
                         access_token = TokenService.create_access_token(token_data)
-                        # refresh_token = TokenService.create_refresh_token(token_data)
-                        
+
                         # 创建响应
                         response = ApiResponse.success(
                             message="注册成功并已登录",
                             data={
                                 "user_id": new_user.user_id,
-                                "access_token": access_token
+                                "access_token": access_token,
+                                "phone": new_user.phone,
+                                "entitlements": [
+                                    {
+                                        "entitlement_id": entitlement.entitlement_id,
+                                        "rule_id": entitlement.rule_id,
+                                        "course_name": entitlement.course_name,
+                                        "product_name": entitlement.product_name,
+                                        "start_date": entitlement.start_date.isoformat() if entitlement.start_date else None,
+                                        "end_date": entitlement.end_date.isoformat() if entitlement.end_date else None,
+                                        "daily_remaining": entitlement.daily_remaining,
+                                        "is_active": True
+                                    }
+                                    for entitlement in user_entitlements
+                                ]
                             }
                         )
 

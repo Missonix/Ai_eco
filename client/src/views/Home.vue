@@ -146,32 +146,62 @@ const startCheck = async () => {
     return
   }
 
+  // 检查输入长度
+  if (inputText.value.length > 120) {
+    alert('输入字符长度不要超过120哦')
+    return
+  }
+
   loading.value = true
   try {
-    const { user_id } = JSON.parse(userInfo)
+    const userData = JSON.parse(userInfo)
+    // 验证用户信息格式
+    if (!userData.phone || !userData.entitlements || userData.entitlements.length === 0) {
+      throw new Error('用户信息不完整，请重新登录')
+    }
+
+    // 获取第一个有效的权益的rule_id
+    const activeEntitlement = userData.entitlements.find((ent: any) => ent.is_active)
+    if (!activeEntitlement) {
+      throw new Error('您暂无有效的使用权限')
+    }
+
     const response = await axios.post('http://10.7.21.239:4455/vio_word/check', {
-      input: inputText.value,
-      user_id: user_id
+      phone: userData.phone,
+      rule_id: activeEntitlement.rule_id,
+      input: inputText.value
     })
     
     if (response.data.code === 200) {
       checkResult.value = response.data.data.result
       
-      // 更新本地存储的使用次数
-      const storedUserInfo = JSON.parse(userInfo)
-      storedUserInfo.usage_count = response.data.data.usage_count
-      localStorage.setItem('userInfo', JSON.stringify(storedUserInfo))
+      // 更新用户信息中的daily_remaining
+      const updatedUserInfo = JSON.parse(userInfo)
+      const entitlementIndex = updatedUserInfo.entitlements.findIndex(
+        (ent: any) => ent.rule_id === activeEntitlement.rule_id
+      )
+      if (entitlementIndex !== -1) {
+        updatedUserInfo.entitlements[entitlementIndex].daily_remaining = 
+          response.data.data.daily_remaining
+        localStorage.setItem('userInfo', JSON.stringify(updatedUserInfo))
+      }
     } else if (response.data.code === 403) {
-      // 使用次数不足的处理
-      alert(response.data.message)
-      router.push('/user') // 跳转到用户页面查看剩余次数
+      // 处理权限不足的情况
+      if (response.data.message === '暂无权益') {
+        alert('您暂无使用此功能的权限，请联系管理员')
+      } else if (response.data.message === '使用额度不足') {
+        alert('今日使用额度已用完，请明天再试')
+      } else {
+        alert(response.data.message || '权限不足')
+      }
     } else {
-      alert(response.data.message || '检测失败')
+      throw new Error(response.data.message || '检测失败')
     }
   } catch (error: any) {
     console.error('检测失败:', error)
-    if (error.response?.data?.code === 403) {
-      alert('使用次数不足')
+    if (error.message === '用户信息不完整，请重新登录' || 
+        error.message === '您暂无有效的使用权限') {
+      alert(error.message)
       router.push('/user')
     } else {
       alert(error.response?.data?.message || '检测失败，请稍后重试')

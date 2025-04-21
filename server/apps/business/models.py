@@ -67,13 +67,15 @@ class Ai_products(Base):
         
 class Entitlement_rules(Base):
     """
-    权限规则模型，用于定义权限规则表
+    权益规则模型，用于定义权益规则表
     """
     __tablename__ = 'entitlement_rules'
     
     rule_id = Column(String(50), primary_key=True, index=True) # 权益id，唯一 主键
     course_id = Column(String(50), nullable=False) # 关联课程ID
+    course_name = Column(VARCHAR(50), nullable=False) # 关联课程名称
     ai_product_id = Column(String(50), nullable=False) # 关联AI产品ID
+    product_name = Column(VARCHAR(20), nullable=False) # 权益产品名称
     daily_limit = Column(Integer, nullable=False, default=5) # 每日使用上限
     validity_days = Column(Integer, nullable=False, default=30) # 权益有效期（天）外键
     created_at = Column(DateTime, default=datetime.utcnow) # 创建时间
@@ -82,7 +84,9 @@ class Entitlement_rules(Base):
     def __repr__(self):
         return (f"Entitlement_rules(rule_id={self.rule_id}, "
                 f"course_id={self.course_id}, "
+                f"course_name={self.course_name}, "
                 f"ai_product_id={self.ai_product_id}, "
+                f"product_name={self.product_name}, "
                 f"daily_limit={self.daily_limit}, "
                 f"validity_days={self.validity_days}, "
                 f"created_at={self.created_at}, is_deleted={self.is_deleted}")
@@ -93,7 +97,9 @@ class Entitlement_rules(Base):
             return {
                 "rule_id": self.rule_id,
                 "course_id": self.course_id,
+                "course_name": self.course_name,
                 "ai_product_id": self.ai_product_id,
+                "product_name": self.product_name,
                 "daily_limit": self.daily_limit,
                 "validity_days": self.validity_days,
                 "created_at": self.created_at.isoformat() if self.created_at else None
@@ -148,8 +154,11 @@ class User_entitlements(Base):
     entitlement_id = Column(String(50), primary_key=True, index=True) # 用户权益id，唯一 主键
     phone = Column(VARCHAR(20), nullable=False) # 用户手机号
     rule_id = Column(String(50), nullable=False) # 权益规则ID
+    course_name = Column(VARCHAR(20), nullable=False) # 关联课程名称
+    product_name = Column(VARCHAR(20), nullable=False) # 权益产品名称
     start_date = Column(DateTime, nullable=False) # 权益生效日期
     end_date = Column(DateTime, nullable=False) # 权益失效日期
+    is_active = Column(Boolean, default=False) # 是否激活
     created_at = Column(DateTime, default=datetime.utcnow) # 创建时间
     daily_remaining = Column(Integer, nullable=False) # 当日剩余次数
     is_deleted = Column(Boolean, default=False) # 是否删除(逻辑删除)
@@ -158,8 +167,11 @@ class User_entitlements(Base):
         return (f"User_entitlements(entitlement_id={self.entitlement_id}, "
                 f"phone={self.phone}, "
                 f"rule_id={self.rule_id}, "
+                f"course_name={self.course_name}, "
+                f"product_name={self.product_name}, "
                 f"start_date={self.start_date}, "
                 f"end_date={self.end_date}, "
+                f"is_active={self.is_active}, "
                 f"created_at={self.created_at}, "
                 f"daily_remaining={self.daily_remaining}, "
                 f"is_deleted={self.is_deleted}")
@@ -171,10 +183,13 @@ class User_entitlements(Base):
                 "entitlement_id": self.entitlement_id,
                 "phone": self.phone,
                 "rule_id": self.rule_id,
+                "course_name": self.course_name,
+                "product_name": self.product_name,
                 "start_date": self.start_date.isoformat() if self.start_date else None,
                 "end_date": self.end_date.isoformat() if self.end_date else None,
                 "created_at": self.created_at.isoformat() if self.created_at else None,
-                "daily_remaining": self.daily_remaining
+                "daily_remaining": self.daily_remaining,
+                "is_active": self.is_active
             }
         except Exception as e:
             logger.error(f"Error converting user to dict: {str(e)}")

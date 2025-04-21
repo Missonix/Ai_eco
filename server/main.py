@@ -9,6 +9,8 @@ from core.cache import Cache
 from core.logger import setup_logger
 import asyncio
 from apps.business.api_routes import business_api_routes # 导入业务接口路由
+from core.scheduler import start_scheduler
+
 # 设置日志记录器
 logger = setup_logger('main')
 
@@ -72,6 +74,9 @@ if __name__ == "__main__":
         
         # 启动应用
         app.start(port=4455, host="0.0.0.0")
+
+        # 在应用启动时启动调度器
+        asyncio.create_task(start_scheduler())
     except Exception as e:
         logger.error(f"Failed to start application: {str(e)}")
         raise

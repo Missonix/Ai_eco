@@ -13,30 +13,37 @@
 
       <!-- 功能卡片 -->
       <div
+        v-for="product in aiProducts"
+        :key="product.id"
         class="block bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-300 cursor-pointer"
-        @click="handleFeatureClick"
+        @click="handleFeatureClick(product)"
       >
         <div class="p-4">
           <div class="flex items-center justify-between">
             <div>
-              <h3 class="text-lg font-medium text-gray-900">直播话术违规词AI检测</h3>
-              <p class="mt-1 text-sm text-gray-500">智能检测直播话术中的违规内容，提供优化建议</p>
+              <h3 class="text-lg font-medium text-gray-900">{{ product.name }}</h3>
+              <p class="mt-1 text-sm text-gray-500">{{ product.description }}</p>
             </div>
-            <div class="text-indigo-600">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-6 w-6"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M9 5l7 7-7 7"
-                />
-              </svg>
+            <div class="flex items-center">
+              <span v-if="!checkFeatureAccess(product.rule_id)" class="text-sm text-red-500 mr-2">
+                无使用权限
+              </span>
+              <div class="text-indigo-600">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-6 w-6"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 5l7 7-7 7"
+                  />
+                </svg>
+              </div>
             </div>
           </div>
         </div>
@@ -50,16 +57,19 @@
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import { checkIsLoggedIn } from '../utils/auth'
+import { checkIsLoggedIn, checkFeatureAccess } from '../utils/auth'
+import { aiProducts } from '../config/aiProducts'
 
 const router = useRouter()
 
-const handleFeatureClick = () => {
+const handleFeatureClick = (product: any) => {
   if (!checkIsLoggedIn()) {
     alert('请登录后使用此功能')
     router.push('/user')
+  } else if (!checkFeatureAccess(product.rule_id)) {
+    alert('您暂无此功能的使用权限')
   } else {
-    router.push('/check')
+    router.push(`/${product.id}`)
   }
 }
 </script>

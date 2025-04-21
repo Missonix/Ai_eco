@@ -24,16 +24,40 @@ async def vio_check(request: Request) -> Response:
             description=json.dumps({"code": 400, "message": "输入字符长度不要超过120哦"})
         )
 
-    usr_id = request.get("user_id")
-    # async with AsyncSessionLocal() as db:
-    #     user_obj = await get_user(db, usr_id)
-    #     usage_count = user_obj.usage_count 
-    #     if usage_count == 0:
-    #         return Response(
-    #             status_code=403,
-    #             headers={"Content-Type": "application/json"},
-    #             description=json.dumps({"code": 403, "message": "使用次数不足"})
-    #         )
+    phone = request.get("phone")
+    rule_id = request.get("rule_id")
+    try:
+        from apps.business import crud as business_crud
+        async with AsyncSessionLocal() as db:
+            filters = {}
+            
+            filters["phone"] = phone
+            filters["rule_id"] = rule_id
+            # 添加未删除的过滤条件
+            filters["is_deleted"] = False
+                
+            async with AsyncSessionLocal() as db:
+                entitlements = await business_crud.get_user_entitlements_by_filters(db, filters)
+                if not entitlements:
+                    return ApiResponse.success(
+                        message="暂无权益",
+                        status_code=403
+                    )
+    except Exception as e:
+        logger.error(f"查询用户权益服务异常: {str(e)}")
+        return ApiResponse.error(
+            message="查询用户权益失败",
+            status_code=500
+        )
+
+    entitlement_id = entitlements[0].entitlement_id
+    daily_remaining = entitlements[0].daily_remaining 
+    if daily_remaining == 0:
+        return Response(
+            status_code=403,
+            headers={"Content-Type": "application/json"},
+            description=json.dumps({"code": 403, "message": "使用额度不足"})
+        )
 
     result = await vio_word_check(input)  # 正确等待异步函数的结果
     if result == False:
@@ -50,17 +74,16 @@ async def vio_check(request: Request) -> Response:
             description=json.dumps(response_data)
         )
     
-    # usage_count -= 1
-    # async with AsyncSessionLocal() as db:
-    #     await update_user(db, usr_id, {"usage_count": usage_count})
-
+    daily_remaining -= 1
+    await business_crud.update_user_entitlement(db, entitlement_id, {"daily_remaining": daily_remaining})
 
     # 构建标准响应格式
     response_data = {
         "code": 200,
         "message": "success",
         "data": {
-            "result": result
+            "result": result,
+            "daily_remaining": daily_remaining
         }
     }
     
