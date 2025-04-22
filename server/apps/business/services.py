@@ -190,22 +190,61 @@ async def get_course_by_id_service(request):
 
 async def get_all_courses_service(request):
     """
-    获取所有课程服务
+    获取所有课程服务，支持分页
     """
     try:
+        # 获取分页参数
+        try:
+            page = int(request.query_params.get("page", "1"))
+            page_size = int(request.query_params.get("page_size", "10"))
+        except ValueError:
+            page = 1
+            page_size = 10
+        
+        # 验证分页参数
+        if page < 1:
+            page = 1
+        if page_size < 1 or page_size > 100:
+            page_size = 10
+            
         async with AsyncSessionLocal() as db:
             # 添加过滤条件，只获取未删除的课程
             filters = {"is_deleted": False}
-            result = await business_crud.get_courses_by_filters(db, filters)
-            courses = result
-            return ApiResponse.success(
-                data=[course.to_dict() for course in courses],
-                message="获取所有课程成功"
-            )
+            # 按创建时间倒序排序
+            order_by = {"created_at": "desc"}
+            
+            try:
+                courses, total_count = await business_crud.get_courses_by_filters(
+                    db, 
+                    filters=filters,
+                    order_by=order_by,
+                    page=page,
+                    page_size=page_size
+                )
+                
+                # 计算总页数
+                total_pages = (total_count + page_size - 1) // page_size
+                
+                return ApiResponse.success(
+                    data={
+                        "items": [course.to_dict() for course in courses],
+                        "total": total_count,
+                        "page": page,
+                        "page_size": page_size,
+                        "total_pages": total_pages
+                    },
+                    message="获取课程列表成功"
+                )
+            except Exception as e:
+                logger.error(f"查询课程列表失败: {str(e)}")
+                return ApiResponse.error(
+                    message="获取课程列表失败",
+                    status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+                )
     except Exception as e:
-        logger.error(f"获取所有课程服务异常: {str(e)}")
+        logger.error(f"获取课程列表服务异常: {str(e)}")
         return ApiResponse.error(
-            message="获取所有课程失败",
+            message="获取课程列表失败",
             status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
@@ -401,22 +440,61 @@ async def get_ai_product_by_id_service(request):
 
 async def get_all_ai_products_service(request):
     """
-    获取所有AI产品服务
+    获取所有AI产品服务，支持分页
     """
     try:
+        # 获取分页参数
+        try:
+            page = int(request.query_params.get("page", "1"))
+            page_size = int(request.query_params.get("page_size", "10"))
+        except ValueError:
+            page = 1
+            page_size = 10
+        
+        # 验证分页参数
+        if page < 1:
+            page = 1
+        if page_size < 1 or page_size > 100:
+            page_size = 10
+            
         async with AsyncSessionLocal() as db:
-            # 添加过滤条件，只获取未删除的课程
+            # 添加过滤条件，只获取未删除的AI产品
             filters = {"is_deleted": False}
-            result = await business_crud.get_ai_products_by_filters(db, filters)
-            ai_products = result
-            return ApiResponse.success(
-                data=[ai_product.to_dict() for ai_product in ai_products],
-                message="获取所有AI产品成功"
-            )
+            # 按创建时间倒序排序
+            order_by = {"created_at": "desc"}
+            
+            try:
+                ai_products, total_count = await business_crud.get_ai_products_by_filters(
+                    db, 
+                    filters=filters,
+                    order_by=order_by,
+                    page=page,
+                    page_size=page_size
+                )
+                
+                # 计算总页数
+                total_pages = (total_count + page_size - 1) // page_size
+                
+                return ApiResponse.success(
+                    data={
+                        "items": [ai_product.to_dict() for ai_product in ai_products],
+                        "total": total_count,
+                        "page": page,
+                        "page_size": page_size,
+                        "total_pages": total_pages
+                    },
+                    message="获取AI产品列表成功"
+                )
+            except Exception as e:
+                logger.error(f"查询AI产品列表失败: {str(e)}")
+                return ApiResponse.error(
+                    message="获取AI产品列表失败",
+                    status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+                )
     except Exception as e:
-        logger.error(f"获取所有AI产品服务异常: {str(e)}")
+        logger.error(f"获取AI产品列表服务异常: {str(e)}")
         return ApiResponse.error(
-            message="获取所有AI产品失败",
+            message="获取AI产品列表失败",
             status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
@@ -563,6 +641,10 @@ async def update_entitlement_rule_service(request):
                     if not course:
                         return ApiResponse.not_found("课程不存在")
                     request_data["course_name"] = course.course_name
+                if "daily_limit" in request_data:
+                    request_data["daily_limit"] = int(request_data["daily_limit"])
+                if "validity_days" in request_data:
+                    request_data["validity_days"] = int(request_data["validity_days"])
 
                 updated_rule = await business_crud.update_entitlement_rule(db, rule_id, request_data)
                 return ApiResponse.success(
@@ -639,6 +721,8 @@ async def get_entitlement_rules_by_filter_service(request):
         filters = {}
         
         # 构建过滤条件
+        if "rule_id" in request_data:
+            filters["rule_id"] = request_data["rule_id"]
         if "course_id" in request_data:
             filters["course_id"] = request_data["course_id"]
         if "ai_product_id" in request_data:
@@ -651,6 +735,8 @@ async def get_entitlement_rules_by_filter_service(request):
             filters["daily_limit"] = request_data["daily_limit"]
         if "validity_days" in request_data:
             filters["validity_days"] = request_data["validity_days"]
+        if "created_at" in request_data:
+            filters["created_at"] = request_data["created_at"]
             
         # 添加未删除的过滤条件
         filters["is_deleted"] = False
@@ -825,7 +911,7 @@ async def update_order_service(request):
             return ApiResponse.validation_error("请求数据不能为空")
             
         # 只允许更新特定字段
-        allowed_fields = ["phone", "course_name", "purchase_time", "is_refund"]
+        allowed_fields = ["phone", "course_name", "purchase_time", "is_refund", "is_generate"]
         update_data = {k: v for k, v in request_data.items() if k in allowed_fields}
         
         if not update_data:
@@ -848,7 +934,10 @@ async def update_order_service(request):
             except ValueError as e:
                 logger.error(f"购买时间格式错误: {str(e)}")
                 return ApiResponse.validation_error("购买时间格式错误，应为'YYYY-MM-DD HH:MM:SS'格式")
-            
+        
+        if "is_generate" in update_data:
+            update_data["is_generate"] = True if update_data["is_generate"] == "True" or update_data["is_generate"] == "true" or update_data["is_generate"] == "1" else False
+        
         async with AsyncSessionLocal() as db:
             # 检查订单是否存在
             order = await business_crud.get_order(db, order_id)
@@ -913,20 +1002,61 @@ async def get_order_service(request):
     
 async def get_all_orders_service(request):
     """
-    获取所有订单服务
+    获取所有订单服务，支持分页
     """
     try:
+        # 获取分页参数
+        try:
+            page = int(request.query_params.get("page", "1"))
+            page_size = int(request.query_params.get("page_size", "10"))
+        except ValueError:
+            page = 1
+            page_size = 10
+        
+        # 验证分页参数
+        if page < 1:
+            page = 1
+        if page_size < 1 or page_size > 100:
+            page_size = 10
+            
         async with AsyncSessionLocal() as db:
+            # 添加过滤条件，只获取未删除的订单
             filters = {"is_deleted": False}
-            orders = await business_crud.get_orders_by_filters(db, filters) 
-            return ApiResponse.success(
-                data=[order.to_dict() for order in orders],
-                message="获取所有订单成功"
-            )
+            # 按创建时间倒序排序
+            order_by = {"created_at": "desc"}
+            
+            try:
+                orders, total_count = await business_crud.get_orders_by_filters(
+                    db, 
+                    filters=filters,
+                    order_by=order_by,
+                    page=page,
+                    page_size=page_size
+                )
+                
+                # 计算总页数
+                total_pages = (total_count + page_size - 1) // page_size
+                
+                return ApiResponse.success(
+                    data={
+                        "items": [order.to_dict() for order in orders],
+                        "total": total_count,
+                        "page": page,
+                        "page_size": page_size,
+                        "total_pages": total_pages
+                    },
+                    message="获取订单列表成功"
+                )
+            except Exception as e:
+                logger.error(f"查询订单列表失败: {str(e)}")
+                return ApiResponse.error(
+                    message="获取订单列表失败",
+                    status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+                )
     except Exception as e:
-        logger.error(f"获取所有订单服务异常: {str(e)}")
+        logger.error(f"获取订单列表服务异常: {str(e)}")
         return ApiResponse.error(
-            message="获取所有订单失败",
+            message="获取订单列表失败",
             status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
@@ -1006,7 +1136,6 @@ async def create_user_entitlement_service(request):
             if not rule:
                 return ApiResponse.not_found("权益规则不存在")
             
-            
             # 计算权益有效期
             start_date = datetime.utcnow()
             end_date = start_date + timedelta(days=rule.validity_days)
@@ -1018,6 +1147,7 @@ async def create_user_entitlement_service(request):
                 "rule_id": rule_id,
                 "course_name": rule.course_name,
                 "product_name": rule.product_name,
+                "ai_product_id": rule.ai_product_id,
                 "start_date": start_date,
                 "end_date": end_date,
                 "is_active": False,
@@ -1112,11 +1242,28 @@ async def update_user_entitlement_service(request):
                 if not rule:
                     return ApiResponse.not_found("权益规则不存在")
                 update_data["product_name"] = rule.product_name
+                update_data["ai_product_id"] = rule.ai_product_id
                 
             # 如果更新is_active，解析is_active为布尔值
             if "is_active" in update_data:
                 is_active = True if update_data["is_active"] == "True" or update_data["is_active"] == "true" or update_data["is_active"] == "1" else False
                 update_data["is_active"] = is_active
+                
+            # 如果更新daily_remaining，转换为整数
+            if "daily_remaining" in update_data:
+                try:
+                    update_data["daily_remaining"] = int(update_data["daily_remaining"])
+                except ValueError:
+                    return ApiResponse.validation_error("daily_remaining必须是整数")
+                    
+            # 如果更新end_date，转换为datetime对象
+            if "end_date" in update_data:
+                try:
+                    # 尝试解析ISO格式的日期时间字符串
+                    end_date = datetime.fromisoformat(update_data["end_date"].replace('Z', '+00:00'))
+                    update_data["end_date"] = end_date
+                except ValueError:
+                    return ApiResponse.validation_error("end_date格式错误，应为ISO格式的日期时间字符串")
             
             try:
                 updated_entitlement = await business_crud.update_user_entitlement(db, entitlement_id, update_data)
@@ -1167,21 +1314,61 @@ async def get_user_entitlement_service(request):
 
 async def get_all_user_entitlements_service(request):
     """
-    获取所有用户权益服务
+    获取所有用户权益服务，支持分页
     """
     try:
+        # 获取分页参数
+        try:
+            page = int(request.query_params.get("page", "1"))
+            page_size = int(request.query_params.get("page_size", "10"))
+        except ValueError:
+            page = 1
+            page_size = 10
+        
+        # 验证分页参数
+        if page < 1:
+            page = 1
+        if page_size < 1 or page_size > 100:
+            page_size = 10
+            
         async with AsyncSessionLocal() as db:
             # 添加过滤条件，只获取未删除的用户权益
             filters = {"is_deleted": False}
-            entitlements = await business_crud.get_user_entitlements_by_filters(db, filters)
-            return ApiResponse.success(
-                data=[entitlement.to_dict() for entitlement in entitlements],
-                message="获取所有用户权益成功"
-            )
+            # 按创建时间倒序排序
+            order_by = {"created_at": "desc"}
+            
+            try:
+                entitlements, total_count = await business_crud.get_user_entitlements_by_filters(
+                    db, 
+                    filters=filters,
+                    order_by=order_by,
+                    page=page,
+                    page_size=page_size
+                )
+                
+                # 计算总页数
+                total_pages = (total_count + page_size - 1) // page_size
+                
+                return ApiResponse.success(
+                    data={
+                        "items": [entitlement.to_dict() for entitlement in entitlements],
+                        "total": total_count,
+                        "page": page,
+                        "page_size": page_size,
+                        "total_pages": total_pages
+                    },
+                    message="获取用户权益列表成功"
+                )
+            except Exception as e:
+                logger.error(f"查询用户权益列表失败: {str(e)}")
+                return ApiResponse.error(
+                    message="获取用户权益列表失败",
+                    status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+                )
     except Exception as e:
-        logger.error(f"获取所有用户权益服务异常: {str(e)}")
+        logger.error(f"获取用户权益列表服务异常: {str(e)}")
         return ApiResponse.error(
-            message="获取所有用户权益失败",
+            message="获取用户权益列表失败",
             status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
@@ -1223,21 +1410,55 @@ async def get_user_entitlements_by_filter_service(request):
         if "is_active" in request_data:
             filters["is_active"] = request_data["is_active"]
 
-            
         # 添加未删除的过滤条件
         filters["is_deleted"] = False
             
         async with AsyncSessionLocal() as db:
-            entitlements = await business_crud.get_user_entitlements_by_filters(db, filters)
-            if not entitlements:
-                return ApiResponse.success(
-                    data=[],
-                    message="未找到符合条件的用户权益"
+            # 获取分页参数
+            try:
+                page = int(request.query_params.get("page", "1"))
+                page_size = int(request.query_params.get("page_size", "10"))
+            except ValueError:
+                page = 1
+                page_size = 10
+            
+            # 验证分页参数
+            if page < 1:
+                page = 1
+            if page_size < 1 or page_size > 100:
+                page_size = 10
+                
+            # 按创建时间倒序排序
+            order_by = {"created_at": "desc"}
+            
+            try:
+                entitlements, total_count = await business_crud.get_user_entitlements_by_filters(
+                    db, 
+                    filters=filters,
+                    order_by=order_by,
+                    page=page,
+                    page_size=page_size
                 )
-            return ApiResponse.success(
-                data=[entitlement.to_dict() for entitlement in entitlements],
-                message="获取用户权益成功"
-            )
+                
+                # 计算总页数
+                total_pages = (total_count + page_size - 1) // page_size
+                
+                return ApiResponse.success(
+                    data={
+                        "items": [entitlement.to_dict() for entitlement in entitlements],
+                        "total": total_count,
+                        "page": page,
+                        "page_size": page_size,
+                        "total_pages": total_pages
+                    },
+                    message="获取用户权益列表成功"
+                )
+            except Exception as e:
+                logger.error(f"查询用户权益列表失败: {str(e)}")
+                return ApiResponse.error(
+                    message="获取用户权益列表失败",
+                    status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+                )
             
     except Exception as e:
         logger.error(f"查询用户权益服务异常: {str(e)}")
@@ -1343,6 +1564,9 @@ async def sync_orders_to_entitlements_service(max_retries=3):
                                 "entitlement_id": generate_entitlement_id(),
                                 "phone": order.phone,
                                 "rule_id": rule.rule_id,
+                                "course_name": rule.course_name,
+                                "product_name": rule.product_name,
+                                "ai_product_id": rule.ai_product_id,
                                 "start_date": start_date,
                                 "end_date": end_date,
                                 "is_active": False,
@@ -1469,6 +1693,84 @@ async def update_daily_remaining_service():
         logger.error(f"每日更新用户权益剩余额度服务异常: {str(e)}")
         raise
 
+async def generate_user_entitlement_from_order_service(request):
+    """
+    根据订单生成用户权益服务
+    """
+    try:
+        order_id = request.path_params.get("order_id")
+        
+        if not order_id:
+            return ApiResponse.validation_error("订单ID不能为空")
+            
+        async with AsyncSessionLocal() as db:
+            # 检查订单是否存在
+            order = await business_crud.get_order(db, order_id)
+            if not order:
+                return ApiResponse.not_found("订单不存在")
+                
+            # 检查订单是否已生成权益
+            if order.is_generate:
+                return ApiResponse.error(
+                    message="该订单已生成用户权益",
+                    status_code=status_codes.HTTP_409_CONFLICT
+                )
+                
+            # 检查订单是否已退款
+            if order.is_refund:
+                return ApiResponse.error(
+                    message="该订单已退款，无法生成用户权益",
+                    status_code=status_codes.HTTP_400_BAD_REQUEST
+                )
+                
+            # 根据course_id查询权益规则
+            rule = await business_crud.get_entitlement_rule_by_filter(db, {"course_id": order.course_id, "is_deleted": False})
+            if not rule:
+                return ApiResponse.not_found("未找到对应的权益规则")
+                
+            # 计算权益有效期
+            start_date = datetime.utcnow()
+            end_date = start_date + timedelta(days=rule.validity_days)
+            
+            # 准备用户权益数据
+            entitlement_data = {
+                "entitlement_id": generate_entitlement_id(),
+                "phone": order.phone,
+                "rule_id": rule.rule_id,
+                "course_name": rule.course_name,
+                "product_name": rule.product_name,
+                "ai_product_id": rule.ai_product_id,
+                "start_date": start_date,
+                "end_date": end_date,
+                "is_active": True,
+                "daily_remaining": rule.daily_limit,
+                "is_deleted": False
+            }
+            
+            try:
+                # 创建用户权益
+                new_entitlement = await business_crud.create_user_entitlement(db, entitlement_data)
+                
+                # 更新订单的is_generate状态
+                await business_crud.update_order(db, order_id, {"is_generate": True})
+                
+                return ApiResponse.success(
+                    data=new_entitlement.to_dict(),
+                    message="用户权益生成成功"
+                )
+            except Exception as e:
+                logger.error(f"生成用户权益失败: {str(e)}")
+                return ApiResponse.error(
+                    message="生成用户权益失败",
+                    status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+                
+    except Exception as e:
+        logger.error(f"生成用户权益服务异常: {str(e)}")
+        return ApiResponse.error(
+            message="生成用户权益失败",
+            status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 
 

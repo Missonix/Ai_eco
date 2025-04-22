@@ -98,4 +98,3 @@ async def check_phone_exists(phone: str) -> bool:
         raise
 
 
-

@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.sql import func
 from core.database import AsyncSessionLocal
 from core.logger import setup_logger
 from apps.business.models import Courses, Entitlement_rules, Orders, User_entitlements
@@ -77,14 +78,37 @@ async def get_course_by_filter(db: AsyncSession, filters: dict):
     course = result.scalar_one_or_none()
     return course
 
-async def get_courses_by_filters(db: AsyncSession, filters=None, order_by=None, limit=None, offset=None):
+async def get_courses_by_filters(db: AsyncSession, filters=None, order_by=None, page: int = 1, page_size: int = 10):
     """
-    批量查询课程
+    批量查询课程，支持分页
+    :param db: 数据库会话
+    :param filters: 过滤条件
+    :param order_by: 排序条件，如 {"created_at": "desc"}
+    :param page: 页码，从1开始
+    :param page_size: 每页数量
+    :return: (课程列表, 总记录数)
     """
-    query = await dynamic_query(db, Courses, filters, order_by, limit, offset)
-    result = await db.execute(query)
-    # 返回所有完整记录（ORM 对象列表）
-    return result.scalars().all()
+    try:
+        # 构建基础查询
+        query = await dynamic_query(db, Courses, filters, order_by)
+        
+        # 计算总记录数
+        count_query = select(func.count()).select_from(query.subquery())
+        total = await db.execute(count_query)
+        total_count = total.scalar()
+        
+        # 添加分页
+        offset = (page - 1) * page_size
+        query = query.offset(offset).limit(page_size)
+        
+        # 执行查询
+        result = await db.execute(query)
+        courses = result.scalars().all()
+        
+        return courses, total_count
+    except Exception as e:
+        logger.error(f"查询课程列表失败: {str(e)}")
+        raise
 
 async def check_course_exists(course_id: str) -> bool:
     """
@@ -170,14 +194,37 @@ async def get_ai_product_by_filter(db: AsyncSession, filters: dict):
     ai_product = result.scalar_one_or_none()
     return ai_product
 
-async def get_ai_products_by_filters(db: AsyncSession, filters=None, order_by=None, limit=None, offset=None):
+async def get_ai_products_by_filters(db: AsyncSession, filters=None, order_by=None, page: int = 1, page_size: int = 10):
     """
-    批量查询AI产品
+    批量查询AI产品，支持分页
+    :param db: 数据库会话
+    :param filters: 过滤条件
+    :param order_by: 排序条件，如 {"created_at": "desc"}
+    :param page: 页码，从1开始
+    :param page_size: 每页数量
+    :return: (AI产品列表, 总记录数)
     """
-    query = await dynamic_query(db, Ai_products, filters, order_by, limit, offset)
-    result = await db.execute(query)
-    # 返回所有完整记录（ORM 对象列表）
-    return result.scalars().all()
+    try:
+        # 构建基础查询
+        query = await dynamic_query(db, Ai_products, filters, order_by)
+        
+        # 计算总记录数
+        count_query = select(func.count()).select_from(query.subquery())
+        total = await db.execute(count_query)
+        total_count = total.scalar()
+        
+        # 添加分页
+        offset = (page - 1) * page_size
+        query = query.offset(offset).limit(page_size)
+        
+        # 执行查询
+        result = await db.execute(query)
+        ai_products = result.scalars().all()
+        
+        return ai_products, total_count
+    except Exception as e:
+        logger.error(f"查询AI产品列表失败: {str(e)}")
+        raise
 
 async def check_ai_product_exists(ai_product_id: str) -> bool:
     """
@@ -342,14 +389,37 @@ async def get_order_by_filter(db: AsyncSession, filters: dict):
     return order
 
 
-async def get_orders_by_filters(db: AsyncSession, filters=None, order_by=None, limit=None, offset=None):
+async def get_orders_by_filters(db: AsyncSession, filters=None, order_by=None, page: int = 1, page_size: int = 10):
     """
-    批量查询订单
+    批量查询订单，支持分页
+    :param db: 数据库会话
+    :param filters: 过滤条件
+    :param order_by: 排序条件，如 {"created_at": "desc"}
+    :param page: 页码，从1开始
+    :param page_size: 每页数量
+    :return: (订单列表, 总记录数)
     """
-    query = await dynamic_query(db, Orders, filters, order_by, limit, offset)
-    result = await db.execute(query)
-    # 返回所有完整记录（ORM 对象列表）
-    return result.scalars().all()
+    try:
+        # 构建基础查询
+        query = await dynamic_query(db, Orders, filters, order_by)
+        
+        # 计算总记录数
+        count_query = select(func.count()).select_from(query.subquery())
+        total = await db.execute(count_query)
+        total_count = total.scalar()
+        
+        # 添加分页
+        offset = (page - 1) * page_size
+        query = query.offset(offset).limit(page_size)
+        
+        # 执行查询
+        result = await db.execute(query)
+        orders = result.scalars().all()
+        
+        return orders, total_count
+    except Exception as e:
+        logger.error(f"查询订单列表失败: {str(e)}")
+        raise
 
 async def check_order_exists(order_id: str) -> bool:
     """
@@ -428,14 +498,37 @@ async def get_user_entitlement_by_filter(db: AsyncSession, filters: dict):
     return user_entitlement
 
 
-async def get_user_entitlements_by_filters(db: AsyncSession, filters=None, order_by=None, limit=None, offset=None):
+async def get_user_entitlements_by_filters(db: AsyncSession, filters=None, order_by=None, page: int = 1, page_size: int = 10):
     """
-    批量查询用户权益
+    批量查询用户权益，支持分页
+    :param db: 数据库会话
+    :param filters: 过滤条件
+    :param order_by: 排序条件，如 {"created_at": "desc"}
+    :param page: 页码，从1开始
+    :param page_size: 每页数量
+    :return: (用户权益列表, 总记录数)
     """
-    query = await dynamic_query(db, User_entitlements, filters, order_by, limit, offset)
-    result = await db.execute(query)
-    # 返回所有完整记录（ORM 对象列表）
-    return result.scalars().all()
+    try:
+        # 构建基础查询
+        query = await dynamic_query(db, User_entitlements, filters, order_by)
+        
+        # 计算总记录数
+        count_query = select(func.count()).select_from(query.subquery())
+        total = await db.execute(count_query)
+        total_count = total.scalar()
+        
+        # 添加分页
+        offset = (page - 1) * page_size
+        query = query.offset(offset).limit(page_size)
+        
+        # 执行查询
+        result = await db.execute(query)
+        entitlements = result.scalars().all()
+        
+        return entitlements, total_count
+    except Exception as e:
+        logger.error(f"查询用户权益列表失败: {str(e)}")
+        raise
 
 async def check_user_entitlement_exists(entitlement_id: str) -> bool:
     """
@@ -453,4 +546,3 @@ async def check_user_entitlement_exists(entitlement_id: str) -> bool:
     except Exception as e:
         logger.error(f"Error checking user entitlement existence: {str(e)}")
         raise
-

@@ -25,7 +25,7 @@
               <p class="mt-1 text-sm text-gray-500">{{ product.description }}</p>
             </div>
             <div class="flex items-center">
-              <span v-if="!checkFeatureAccess(product.rule_id)" class="text-sm text-red-500 mr-2">
+              <span v-if="!checkFeatureAccess(product.ai_product_id)" class="text-sm text-red-500 mr-2">
                 无使用权限
               </span>
               <div class="text-indigo-600">
@@ -57,16 +57,29 @@
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import { checkIsLoggedIn, checkFeatureAccess } from '../utils/auth'
+import { checkIsLoggedIn } from '../utils/auth'
 import { aiProducts } from '../config/aiProducts'
 
 const router = useRouter()
+
+// 检查用户是否有特定功能的访问权限
+const checkFeatureAccess = (aiProductId: string): boolean => {
+  const userInfo = localStorage.getItem('userInfo')
+  if (!userInfo) return false
+  
+  const userData = JSON.parse(userInfo)
+  if (!userData.entitlements || !userData.entitlements.length) return false
+  
+  return userData.entitlements.some(
+    (ent: any) => ent.is_active && ent.ai_product_id === aiProductId
+  )
+}
 
 const handleFeatureClick = (product: any) => {
   if (!checkIsLoggedIn()) {
     alert('请登录后使用此功能')
     router.push('/user')
-  } else if (!checkFeatureAccess(product.rule_id)) {
+  } else if (!checkFeatureAccess(product.ai_product_id)) {
     alert('您暂无此功能的使用权限')
   } else {
     router.push(`/${product.id}`)

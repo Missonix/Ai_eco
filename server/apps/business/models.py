@@ -119,6 +119,7 @@ class Orders(Base):
     course_id = Column(String(50), nullable=False) # 课程ID
     purchase_time = Column(String(50), nullable=False) # 购买时间
     is_refund = Column(Boolean, default=False) # 是否退款
+    is_generate = Column(Boolean, default=False) # 是否生成权益
     created_at = Column(DateTime, default=datetime.utcnow) # 创建时间
     is_deleted = Column(Boolean, default=False) # 是否删除(逻辑删除)
     
@@ -128,6 +129,7 @@ class Orders(Base):
                 f"course_id={self.course_id}, "
                 f"purchase_time={self.purchase_time}, "
                 f"is_refund={self.is_refund}, "
+                f"is_generate={self.is_generate}, "
                 f"created_at={self.created_at}, is_deleted={self.is_deleted}")
     
     def to_dict(self):
@@ -139,6 +141,7 @@ class Orders(Base):
                 "course_id": self.course_id,
                 "purchase_time": self.purchase_time,  # 直接返回字符串
                 "is_refund": self.is_refund,
+                "is_generate": self.is_generate,
                 "created_at": self.created_at.isoformat() if self.created_at else None
             }
         except Exception as e:
@@ -156,6 +159,7 @@ class User_entitlements(Base):
     rule_id = Column(String(50), nullable=False) # 权益规则ID
     course_name = Column(VARCHAR(20), nullable=False) # 关联课程名称
     product_name = Column(VARCHAR(20), nullable=False) # 权益产品名称
+    ai_product_id = Column(VARCHAR(50), nullable=True)  # 新增字段
     start_date = Column(DateTime, nullable=False) # 权益生效日期
     end_date = Column(DateTime, nullable=False) # 权益失效日期
     is_active = Column(Boolean, default=False) # 是否激活
@@ -168,6 +172,7 @@ class User_entitlements(Base):
                 f"phone={self.phone}, "
                 f"rule_id={self.rule_id}, "
                 f"course_name={self.course_name}, "
+                f"ai_product_id={self.ai_product_id},"
                 f"product_name={self.product_name}, "
                 f"start_date={self.start_date}, "
                 f"end_date={self.end_date}, "
@@ -185,6 +190,7 @@ class User_entitlements(Base):
                 "rule_id": self.rule_id,
                 "course_name": self.course_name,
                 "product_name": self.product_name,
+                "ai_product_id": self.ai_product_id,
                 "start_date": self.start_date.isoformat() if self.start_date else None,
                 "end_date": self.end_date.isoformat() if self.end_date else None,
                 "created_at": self.created_at.isoformat() if self.created_at else None,
@@ -197,4 +203,3 @@ class User_entitlements(Base):
         
 
     
-

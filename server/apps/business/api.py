@@ -201,7 +201,8 @@ from apps.business.services import (
     delete_user_entitlement_service,
     get_user_entitlement_service,
     get_user_entitlements_by_filter_service,
-    get_all_user_entitlements_service
+    get_all_user_entitlements_service,
+    generate_user_entitlement_from_order_service
 )
 
 
@@ -242,8 +243,11 @@ async def get_user_entitlements_by_filter_api(request: Request):
     return await get_user_entitlements_by_filter_service(request)
 
 
-
-
+async def generate_user_entitlement_from_order_api(request: Request):
+    """
+    根据订单生成用户权益
+    """
+    return await generate_user_entitlement_from_order_service(request)
 
 
 

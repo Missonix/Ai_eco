@@ -169,6 +169,7 @@ interface Entitlement {
   rule_id: string
   course_name: string
   product_name: string
+  ai_product_id: string
   start_date: string
   end_date: string
   daily_remaining: number
@@ -220,17 +221,33 @@ const handleLogin = async () => {
     })
 
     if (response.data.code === 200) {
-      userInfo.value = response.data.data
-      isLoggedIn.value = true
-      showLoginForm.value = false
+      // 获取用户基本信息
+      const userBasicInfo = response.data.data
+      
+      // 获取用户权益信息
+      const entitlementsResponse = await axios.post('http://10.7.21.239:4455/user_entitlements/search', {
+        phone: phone.value
+      })
 
-      // 保存登录状态和用户信息
-      if (userInfo.value) {
-        localStorage.setItem('userInfo', JSON.stringify(userInfo.value))
-        localStorage.setItem('accessToken', userInfo.value.access_token)
+      if (entitlementsResponse.data.code === 200) {
+        // 合并用户信息和权益信息
+        userInfo.value = {
+          ...userBasicInfo,
+          entitlements: entitlementsResponse.data.data.items
+        }
+        isLoggedIn.value = true
+        showLoginForm.value = false
 
-        // 设置 axios 默认 headers
-        axios.defaults.headers.common['Authorization'] = `Bearer ${userInfo.value.access_token}`
+        // 保存登录状态和用户信息
+        if (userInfo.value) {
+          localStorage.setItem('userInfo', JSON.stringify(userInfo.value))
+          localStorage.setItem('accessToken', userInfo.value.access_token)
+
+          // 设置 axios 默认 headers
+          axios.defaults.headers.common['Authorization'] = `Bearer ${userInfo.value.access_token}`
+        }
+      } else {
+        throw new Error(entitlementsResponse.data.message || '获取用户权益失败')
       }
     } else {
       throw new Error(response.data.message || '登录失败')
@@ -296,12 +313,29 @@ const handleLogout = async () => {
 }
 
 // 检查登录状态
-const checkLoginStatus = () => {
+const checkLoginStatus = async () => {
   const savedUserInfo = localStorage.getItem('userInfo')
   const accessToken = localStorage.getItem('accessToken')
 
   if (savedUserInfo && accessToken) {
-    userInfo.value = JSON.parse(savedUserInfo)
+    const userData = JSON.parse(savedUserInfo)
+    try {
+      // 获取最新的用户权益信息
+      const entitlementsResponse = await axios.post('http://10.7.21.239:4455/user_entitlements/search', {
+        phone: userData.phone
+      })
+
+      if (entitlementsResponse.data.code === 200) {
+        // 更新用户信息中的权益数据
+        userInfo.value = {
+          ...userData,
+          entitlements: entitlementsResponse.data.data.items
+        }
+        localStorage.setItem('userInfo', JSON.stringify(userInfo.value))
+      }
+    } catch (error) {
+      console.error('获取用户权益失败:', error)
+    }
     isLoggedIn.value = true
     axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`
   }

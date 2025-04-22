@@ -111,6 +111,7 @@
 import { ref } from 'vue'
 import axios from 'axios'
 import { useRouter } from 'vue-router'
+import { aiProducts, type AIProduct } from '@/config/aiProducts'
 
 interface CheckResult {
   is_Violations: string
@@ -160,15 +161,23 @@ const startCheck = async () => {
       throw new Error('用户信息不完整，请重新登录')
     }
 
-    // 获取第一个有效的权益的rule_id
-    const activeEntitlement = userData.entitlements.find((ent: any) => ent.is_active)
+    // 获取当前产品的ai_product_id
+    const currentProduct = aiProducts.find((p: AIProduct) => p.id === 'live_check')
+    if (!currentProduct) {
+      throw new Error('产品配置错误')
+    }
+
+    // 查找用户是否有该产品的权限
+    const activeEntitlement = userData.entitlements.find(
+      (ent: any) => ent.is_active && ent.ai_product_id === currentProduct.ai_product_id
+    )
     if (!activeEntitlement) {
-      throw new Error('您暂无有效的使用权限')
+      throw new Error('您暂无使用此功能的权限')
     }
 
     const response = await axios.post('http://10.7.21.239:4455/vio_word/check', {
       phone: userData.phone,
-      rule_id: activeEntitlement.rule_id,
+      ai_product_id: currentProduct.ai_product_id,
       input: inputText.value
     })
     
@@ -178,7 +187,7 @@ const startCheck = async () => {
       // 更新用户信息中的daily_remaining
       const updatedUserInfo = JSON.parse(userInfo)
       const entitlementIndex = updatedUserInfo.entitlements.findIndex(
-        (ent: any) => ent.rule_id === activeEntitlement.rule_id
+        (ent: any) => ent.entitlement_id === activeEntitlement.entitlement_id
       )
       if (entitlementIndex !== -1) {
         updatedUserInfo.entitlements[entitlementIndex].daily_remaining = 
@@ -200,7 +209,8 @@ const startCheck = async () => {
   } catch (error: any) {
     console.error('检测失败:', error)
     if (error.message === '用户信息不完整，请重新登录' || 
-        error.message === '您暂无有效的使用权限') {
+        error.message === '您暂无使用此功能的权限' ||
+        error.message === '产品配置错误') {
       alert(error.message)
       router.push('/user')
     } else {

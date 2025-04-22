@@ -30,7 +30,7 @@ async def login_user(request):
     """
     try:
         request_data = request.json()
-        phone = request_data.get("phone")  #
+        phone = request_data.get("phone")
         password = request_data.get("password")
 
         if not phone or not password:
@@ -50,32 +50,46 @@ async def login_user(request):
                     status_code=status_codes.HTTP_401_UNAUTHORIZED
                 )
 
-            
             # 更新用户登录时间
             await crud.update_user(db, user.user_id, {"last_login": datetime.utcnow()})
             from apps.business import crud as business_crud
             # 根据phone查询用户权益表
             async with AsyncSessionLocal() as db:
-                user_entitlements = await business_crud.get_user_entitlements_by_filters(db, {"phone": phone, "is_deleted": False})
-                if user_entitlements:
-                    # 生成Token
-                    token_data = {
-                        "user_id": user.user_id,
-                        "phone": user.phone,
-                        "entitlements": [
-                            {
-                                "entitlement_id": entitlement.entitlement_id,
-                                "rule_id": entitlement.rule_id,
-                                "course_name": entitlement.course_name,
-                                "product_name": entitlement.product_name,
-                                "start_date": entitlement.start_date.isoformat() if entitlement.start_date else None,
-                                "end_date": entitlement.end_date.isoformat() if entitlement.end_date else None,
-                                "daily_remaining": entitlement.daily_remaining,
-                                "is_active": entitlement.is_active
-                            }
-                            for entitlement in user_entitlements
-                        ]
-                    }
+                # 添加过滤条件，只获取未删除的用户权益
+                filters = {"phone": phone, "is_deleted": False}
+                # 按创建时间倒序排序
+                order_by = {"created_at": "desc"}
+                
+                entitlements, total_count = await business_crud.get_user_entitlements_by_filters(
+                    db, 
+                    filters=filters,
+                    order_by=order_by,
+                    page=1,
+                    page_size=99
+                )
+                
+                # 计算总页数
+                total_pages = (total_count + 10 - 1) // 10
+                
+                # 生成Token
+                token_data = {
+                    "user_id": user.user_id,
+                    "phone": user.phone,
+                    "entitlements": [
+                        {
+                            "entitlement_id": entitlement.entitlement_id,
+                            "rule_id": entitlement.rule_id,
+                            "course_name": entitlement.course_name,
+                            "ai_product_id": entitlement.ai_product_id,
+                            "product_name": entitlement.product_name,
+                            "start_date": entitlement.start_date.isoformat() if entitlement.start_date else None,
+                            "end_date": entitlement.end_date.isoformat() if entitlement.end_date else None,
+                            "daily_remaining": entitlement.daily_remaining,
+                            "is_active": entitlement.is_active
+                        }
+                        for entitlement in entitlements
+                    ]
+                }
             
             # 创建访问令牌
             access_token = TokenService.create_access_token(token_data)
@@ -87,19 +101,26 @@ async def login_user(request):
                     "user_id": user.user_id,
                     "phone": user.phone,
                     "access_token": access_token,
-                    "entitlements": [
-                        {
-                            "entitlement_id": entitlement.entitlement_id,
-                            "rule_id": entitlement.rule_id,
-                            "course_name": entitlement.course_name,
-                            "product_name": entitlement.product_name,
-                            "start_date": entitlement.start_date.isoformat() if entitlement.start_date else None,
-                            "end_date": entitlement.end_date.isoformat() if entitlement.end_date else None,
-                            "daily_remaining": entitlement.daily_remaining,
-                            "is_active": entitlement.is_active
-                        }
-                        for entitlement in user_entitlements
-                    ]
+                    "entitlements": {
+                        "items": [
+                            {
+                                "entitlement_id": entitlement.entitlement_id,
+                                "rule_id": entitlement.rule_id,
+                                "course_name": entitlement.course_name,
+                                "ai_product_id": entitlement.ai_product_id,
+                                "product_name": entitlement.product_name,
+                                "start_date": entitlement.start_date.isoformat() if entitlement.start_date else None,
+                                "end_date": entitlement.end_date.isoformat() if entitlement.end_date else None,
+                                "daily_remaining": entitlement.daily_remaining,
+                                "is_active": entitlement.is_active
+                            }
+                            for entitlement in entitlements
+                        ],
+                        "total": total_count,
+                        "page": 1,
+                        "page_size": 10,
+                        "total_pages": total_pages
+                    }
                 }
             )
             
@@ -202,10 +223,25 @@ async def register(request):
                         from apps.business import crud as business_crud
                         # 根据phone查询用户权益表
                         async with AsyncSessionLocal() as db:
-                            user_entitlements = await business_crud.get_user_entitlements_by_filters(db, {"phone": phone, "is_deleted": False})
-                            if user_entitlements:
+                            # 添加过滤条件，只获取未删除的用户权益
+                            filters = {"phone": phone, "is_deleted": False}
+                            # 按创建时间倒序排序
+                            order_by = {"created_at": "desc"}
+                            
+                            entitlements, total_count = await business_crud.get_user_entitlements_by_filters(
+                                db, 
+                                filters=filters,
+                                order_by=order_by,
+                                page=1,
+                                page_size=99
+                            )
+                            
+                            # 计算总页数
+                            total_pages = (total_count + 10 - 1) // 10
+                            
+                            if entitlements:
                                 # 更新用户权益表的is_active为True
-                                for entitlement in user_entitlements:
+                                for entitlement in entitlements:
                                     await business_crud.update_user_entitlement(db, entitlement.entitlement_id, {"is_active": True})
                                 # 生成Token
                                 token_data = {
@@ -216,13 +252,14 @@ async def register(request):
                                             "entitlement_id": entitlement.entitlement_id,
                                             "rule_id": entitlement.rule_id,
                                             "course_name": entitlement.course_name,
+                                            "ai_product_id": entitlement.ai_product_id,
                                             "product_name": entitlement.product_name,
                                             "start_date": entitlement.start_date.isoformat() if entitlement.start_date else None,
                                             "end_date": entitlement.end_date.isoformat() if entitlement.end_date else None,
                                             "daily_remaining": entitlement.daily_remaining,
                                             "is_active": True
                                         }
-                                        for entitlement in user_entitlements
+                                        for entitlement in entitlements
                                     ]
                                 }
                             else:
@@ -240,19 +277,26 @@ async def register(request):
                                 "user_id": new_user.user_id,
                                 "access_token": access_token,
                                 "phone": new_user.phone,
-                                "entitlements": [
-                                    {
-                                        "entitlement_id": entitlement.entitlement_id,
-                                        "rule_id": entitlement.rule_id,
-                                        "course_name": entitlement.course_name,
-                                        "product_name": entitlement.product_name,
-                                        "start_date": entitlement.start_date.isoformat() if entitlement.start_date else None,
-                                        "end_date": entitlement.end_date.isoformat() if entitlement.end_date else None,
-                                        "daily_remaining": entitlement.daily_remaining,
-                                        "is_active": True
-                                    }
-                                    for entitlement in user_entitlements
-                                ]
+                                "entitlements": {
+                                    "items": [
+                                        {
+                                            "entitlement_id": entitlement.entitlement_id,
+                                            "rule_id": entitlement.rule_id,
+                                            "course_name": entitlement.course_name,
+                                            "ai_product_id": entitlement.ai_product_id,
+                                            "product_name": entitlement.product_name,
+                                            "start_date": entitlement.start_date.isoformat() if entitlement.start_date else None,
+                                            "end_date": entitlement.end_date.isoformat() if entitlement.end_date else None,
+                                            "daily_remaining": entitlement.daily_remaining,
+                                            "is_active": True
+                                        }
+                                        for entitlement in entitlements
+                                    ],
+                                    "total": total_count,
+                                    "page": 1,
+                                    "page_size": 99,
+                                    "total_pages": total_pages
+                                }
                             }
                         )
 

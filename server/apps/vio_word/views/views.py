@@ -25,19 +25,25 @@ async def vio_check(request: Request) -> Response:
         )
 
     phone = request.get("phone")
-    rule_id = request.get("rule_id")
+    ai_product_id = request.get("ai_product_id")
     try:
         from apps.business import crud as business_crud
         async with AsyncSessionLocal() as db:
             filters = {}
             
             filters["phone"] = phone
-            filters["rule_id"] = rule_id
+            filters["ai_product_id"] = ai_product_id
             # 添加未删除的过滤条件
             filters["is_deleted"] = False
-                
+            
             async with AsyncSessionLocal() as db:
-                entitlements = await business_crud.get_user_entitlements_by_filters(db, filters)
+                entitlements, total_count = await business_crud.get_user_entitlements_by_filters(
+                    db, 
+                    filters=filters,
+                    order_by={"created_at": "desc"},
+                    page=1,
+                    page_size=1
+                )
                 if not entitlements:
                     return ApiResponse.success(
                         message="暂无权益",
@@ -50,8 +56,11 @@ async def vio_check(request: Request) -> Response:
             status_code=500
         )
 
-    entitlement_id = entitlements[0].entitlement_id
-    daily_remaining = entitlements[0].daily_remaining 
+    # 获取最新的权益记录
+    entitlement = entitlements[0]
+    entitlement_id = entitlement.entitlement_id
+    daily_remaining = entitlement.daily_remaining 
+    
     if daily_remaining == 0:
         return Response(
             status_code=403,

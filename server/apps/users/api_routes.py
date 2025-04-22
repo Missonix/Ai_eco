@@ -110,4 +110,3 @@ def users_api_routes(app):
         检查token状态
         """
         return await check_token_api(request)
-

@@ -32,7 +32,8 @@ from apps.business.api import (
     delete_user_entitlement_api,
     get_user_entitlement_by_id_api,
     get_all_user_entitlements,
-    get_user_entitlements_by_filter_api
+    get_user_entitlements_by_filter_api,
+    generate_user_entitlement_from_order_api
 )
 
 def business_api_routes(app):
@@ -79,3 +80,4 @@ def business_api_routes(app):
     app.add_route(route_type="GET", endpoint="/user_entitlements/:entitlement_id", handler=get_user_entitlement_by_id_api) # 通过用户权益ID获取单个用户权益
     app.add_route(route_type="POST", endpoint="/user_entitlements/search", handler=get_user_entitlements_by_filter_api) # 通过条件查询用户权益
 
+    app.add_route(route_type="GET", endpoint="/user_entitlements/generate/:order_id", handler=generate_user_entitlement_from_order_api) # 根据订单生成用户权益
