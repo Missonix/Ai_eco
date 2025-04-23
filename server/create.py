@@ -2,8 +2,8 @@ import asyncio
 from core.database import Base, engine
 # 必须导入所有模型
 from apps.users.models import User
-from apps.business.models import Courses, Entitlement_rules, Orders, User_entitlements, Ai_products
-
+from apps.business.models import Courses, Entitlement_rules, Orders, User_entitlements, Ai_products, Upload_error_orders, Batch_generate_entitlements_error
+from apps.vio_word.models import Vio_word
 """
 创建 初始化asyncio数据库
 """

@@ -41,3 +41,40 @@ class User(Base):
         except Exception as e:
             logger.error(f"Error converting user to dict: {str(e)}")
             return {}
+        
+# 管理员模型
+class Admin(Base):
+    """
+    管理员模型，用于定义管理员表
+    """
+    __tablename__ = 'admins'
+    
+    admin_id = Column(String(20), primary_key=True, index=True)
+    username = Column(VARCHAR(20), unique=True, index=True, nullable=False)
+    password = Column(String(255), nullable=False) # 密码
+    is_deleted = Column(Boolean, default=False) # 是否是删除状态
+    last_login = Column(DateTime, nullable=True) # 最后登录时间
+    created_at = Column(DateTime, default=datetime.utcnow) # 创建时间
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow) # 更新时间
+    
+    def __repr__(self):
+        return (f"Admin(admin_id={self.admin_id}, "
+                f"username={self.username}, password={self.password}, "
+                f"created_at={self.created_at}, updated_at={self.updated_at}, is_deleted={self.is_deleted}, "
+                f"last_login={self.last_login})")
+    
+    def to_dict(self):
+        """转换为字典"""
+        try:
+            return {
+                "admin_id": self.admin_id,
+                "username": self.username,
+                "password": self.password,
+                "last_login": self.last_login.isoformat() if self.last_login else None,
+                "created_at": self.created_at.isoformat() if self.created_at else None,
+                "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            }
+        except Exception as e:
+            logger.error(f"Error converting admin to dict: {str(e)}")
+            return {}
+

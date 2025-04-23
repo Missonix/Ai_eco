@@ -201,10 +201,9 @@ class User_entitlements(Base):
             logger.error(f"Error converting user to dict: {str(e)}")
             return {}
         
-# 上传错误订单模型
 class Upload_error_orders(Base):
     """
-    上传错误订单模型，用于定义上传错误订单表
+    订单批量上传失败模型，用于定义订单批量上传失败表
     """
     __tablename__ = 'upload_error_orders'
     
@@ -236,7 +235,7 @@ class Upload_error_orders(Base):
 # 批量生成权益错误模型
 class Batch_generate_entitlements_error(Base):
     """
-    批量生成权益错误模型，用于定义批量生成权益错误表
+    批量生成权益失败模型，用于定义批量生成权益失败表
     """
     __tablename__ = 'batch_generate_entitlements_error'
     
