@@ -33,8 +33,16 @@ from apps.business.api import (
     get_user_entitlement_by_id_api,
     get_all_user_entitlements,
     get_user_entitlements_by_filter_api,
-    generate_user_entitlement_from_order_api
+    generate_user_entitlement_from_order_api,
+    batch_generate_user_entitlements_api,
+
+    delete_course_permanently_api,
+    delete_ai_product_permanently_api,
+
+    get_upload_error_orders_api,
+    get_batch_generate_errors_api,
 )
+from apps.business.views import upload_orders_excel
 
 def business_api_routes(app):
     """
@@ -81,3 +89,13 @@ def business_api_routes(app):
     app.add_route(route_type="POST", endpoint="/user_entitlements/search", handler=get_user_entitlements_by_filter_api) # 通过条件查询用户权益
 
     app.add_route(route_type="GET", endpoint="/user_entitlements/generate/:order_id", handler=generate_user_entitlement_from_order_api) # 根据订单生成用户权益
+    app.add_route(route_type="GET", endpoint="/user_entitlements/batch_generate", handler=batch_generate_user_entitlements_api) # 批量根据订单生成用户权益
+
+    app.add_route(route_type="POST", endpoint="/orders/upload", handler=upload_orders_excel) # 上传订单Excel文件
+
+    app.add_route(route_type="DELETE", endpoint="/del_courses/:course_id", handler=delete_course_permanently_api) # 彻底删除课程
+    app.add_route(route_type="DELETE", endpoint="/del_ai_products/:ai_product_id", handler=delete_ai_product_permanently_api) # 彻底删除AI产品
+
+    app.add_route(route_type="GET", endpoint="/upload_error_orders", handler=get_upload_error_orders_api) # 获取上传错误订单
+    app.add_route(route_type="GET", endpoint="/batch_generate_errors", handler=get_batch_generate_errors_api) # 获取批量生成权益错误
+    

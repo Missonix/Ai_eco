@@ -1,5 +1,13 @@
 from robyn.robyn import Request
-from apps.business.services import create_course_service, delete_course_service, get_course_service, update_course_service, get_all_courses_service, get_course_by_id_service
+from apps.business.services import (create_course_service, 
+                                    delete_course_service, 
+                                    get_course_service, 
+                                    update_course_service, 
+                                    get_all_courses_service, 
+                                    get_course_by_id_service, 
+                                    delete_course_permanently_service,
+                                    delete_ai_product_permanently_service
+                                    )
 
 """
     定义业务API接口
@@ -45,6 +53,14 @@ async def delete_course_api(request: Request):
     """
     return await delete_course_service(request)
 
+async def delete_course_permanently_api(request: Request):
+    """
+    彻底删除课程
+    """
+    return await delete_course_permanently_service(request)
+
+
+
 from apps.business.services import (
     create_ai_product_service,  # 创建AI产品服务
     update_ai_product_service,  # 更新AI产品服务
@@ -85,6 +101,11 @@ async def delete_ai_product_api(request: Request):
     """
     return await delete_ai_product_service(request)
 
+async def delete_ai_product_permanently_api(request: Request):
+    """
+    彻底删除AI产品
+    """
+    return await delete_ai_product_permanently_service(request)
 
 
 from apps.business.services import (
@@ -249,10 +270,27 @@ async def generate_user_entitlement_from_order_api(request: Request):
     """
     return await generate_user_entitlement_from_order_service(request)
 
+from apps.business.services import batch_generate_user_entitlements_service
 
+async def batch_generate_user_entitlements_api(request: Request):
+    """
+    批量根据订单生成用户权益
+    """
+    return await batch_generate_user_entitlements_service(request)
 
+from apps.business.services import get_upload_error_orders_service
 
+async def get_upload_error_orders_api(request: Request):
+    """
+    获取上传错误订单
+    """
+    return await get_upload_error_orders_service(request)
 
+from apps.business.services import get_batch_generate_errors_service
 
-
+async def get_batch_generate_errors_api(request: Request):
+    """
+    获取批量生成权益错误
+    """
+    return await get_batch_generate_errors_service(request)
 

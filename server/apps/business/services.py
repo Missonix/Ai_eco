@@ -24,6 +24,7 @@ from apps.business.utils import (
 )
 import asyncio
 
+
 # 设置日志记录器
 logger = setup_logger('business_services')
 
@@ -44,20 +45,34 @@ async def create_course_service(request):
         if not course_name:
             return ApiResponse.validation_error("课程名称不能为空")
             
+        # 标准化课程名称（移除所有空格）
+        course_name = course_name.replace(' ', '')
+        course_data["course_name"] = course_name
+            
         async with AsyncSessionLocal() as db:
-            # 检查课程名是否已存在
-            existing_course = await business_crud.get_course_by_filter(db, {"course_name": course_name})
-            if existing_course:
-                return ApiResponse.error(
-                    message="课程名称已存在",
-                    status_code=status_codes.HTTP_409_CONFLICT
-                )
-            
-            # 生成课程ID
-            course_data["course_id"] = generate_course_id()
-            course_data["is_deleted"] = False
-            
             try:
+                # 检查课程名是否已存在
+                existing_course = await business_crud.get_course_by_filter(db, {"course_name": course_name, "is_deleted": False})
+                if existing_course:
+                    return ApiResponse.error(
+                        message="课程名称已存在",
+                        status_code=status_codes.HTTP_409_CONFLICT
+                    )
+                
+                existing_del_course = await business_crud.get_course_by_filter(db, {"course_name": course_name, "is_deleted": True})
+                if existing_del_course:
+                    await business_crud.update_course(db, existing_del_course.course_id, {"is_deleted": False})
+                    return ApiResponse.success(
+                        message="课程名称已存在，已恢复",
+                        status_code=status_codes.HTTP_200_OK
+                    )
+                
+                # 生成课程ID
+                course_data["course_id"] = generate_course_id()
+                course_data["is_deleted"] = False
+
+                
+                # 创建课程
                 new_course = await business_crud.create_course(db, course_data)
                 return ApiResponse.success(
                     data=new_course.to_dict(),
@@ -65,6 +80,7 @@ async def create_course_service(request):
                 )
             except Exception as e:
                 logger.error(f"创建课程失败: {str(e)}")
+                await db.rollback()
                 return ApiResponse.error(
                     message="创建课程失败",
                     status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
@@ -99,14 +115,48 @@ async def update_course_service(request):
             
             # 如果更新课程名称，检查新名称是否已存在
             if "course_name" in request_data:
+                # 标准化课程名称（移除多余空格）
+                course_name = ' '.join(request_data["course_name"].split())
+                request_data["course_name"] = course_name
+                
                 existing_course = await business_crud.get_course_by_filter(
                     db, 
-                    {"course_name": request_data["course_name"]}
+                    {"course_name": course_name, "is_deleted": False}
                 )
                 if existing_course and existing_course.course_id != course_id:
                     return ApiResponse.error(
                         message="课程名称已存在",
                         status_code=status_codes.HTTP_409_CONFLICT
+                    )
+                
+                existing_del_course = await business_crud.get_course_by_filter(
+                    db, 
+                    {"course_name": course_name, "is_deleted": True}
+                )
+                if existing_del_course:
+                    await business_crud.delete_course_permanently(db, existing_del_course.course_id)
+
+                
+                # 同步更新权益规则表中的课程名称
+                try:
+                    # 更新权益规则表中的课程名称
+                    await business_crud.update_entitlement_rules_by_course_id(
+                        db,
+                        course_id,
+                        {"course_name": course_name}
+                    )
+                    
+                    # 更新用户权益表中的课程名称
+                    await business_crud.update_user_entitlements_by_course_id(
+                        db,
+                        course_id,
+                        {"course_name": course_name}
+                    )
+                except Exception as e:
+                    logger.error(f"同步更新权益规则和用户权益失败: {str(e)}")
+                    return ApiResponse.error(
+                        message="更新课程名称失败，同步更新权益规则和用户权益时出错",
+                        status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
                     )
             
             try:
@@ -145,7 +195,7 @@ async def get_course_service(request):
             if course_id:
                 course = await business_crud.get_course(db, course_id)
             else:
-                course = await business_crud.get_course_by_filter(db, {"course_name": course_name})
+                course = await business_crud.get_course_by_filter(db, {"course_name": course_name, "is_deleted": False})
                 
             if not course:
                 return ApiResponse.not_found("课程不存在")
@@ -281,6 +331,27 @@ async def delete_course_service(request):
             message="删除课程失败",
             status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
         )
+    
+
+async def delete_course_permanently_service(request):
+    """
+    彻底删除课程服务
+    """
+    try:
+        course_id = request.path_params.get("course_id")
+        if not course_id:
+            return ApiResponse.validation_error("课程ID不能为空")
+            
+        async with AsyncSessionLocal() as db:
+            await business_crud.delete_course_permanently(db, course_id)
+            return ApiResponse.success(message="课程彻底删除成功")
+    except Exception as e:
+        logger.error(f"彻底删除课程服务异常: {str(e)}")
+        return ApiResponse.error(
+            message="彻底删除课程失败",
+            status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
 
 
 async def create_ai_product_service(request):
@@ -294,13 +365,25 @@ async def create_ai_product_service(request):
         if not ai_product_name:
             return ApiResponse.validation_error("AI产品名称不能为空")
             
+        # 标准化AI产品名称（移除所有空格）
+        ai_product_name = ai_product_name.replace(' ', '')
+        ai_product_data["ai_product_name"] = ai_product_name
+            
         async with AsyncSessionLocal() as db:
             # 检查AI产品名是否已存在
-            existing_ai_product = await business_crud.get_ai_product_by_filter(db, {"ai_product_name": ai_product_name})
+            existing_ai_product = await business_crud.get_ai_product_by_filter(db, {"ai_product_name": ai_product_name, "is_deleted": False})
             if existing_ai_product:
                 return ApiResponse.error(
                     message="AI产品名称已存在",
                     status_code=status_codes.HTTP_409_CONFLICT
+                )
+            
+            existing_del_ai_product = await business_crud.get_ai_product_by_filter(db, {"ai_product_name": ai_product_name, "is_deleted": True})
+            if existing_del_ai_product:
+                await business_crud.update_ai_product(db, existing_del_ai_product.ai_product_id, {"is_deleted": False})
+                return ApiResponse.success(
+                    message="AI产品名称已存在，已恢复",
+                    status_code=status_codes.HTTP_200_OK
                 )
 
             # 生成AI产品ID
@@ -349,14 +432,47 @@ async def update_ai_product_service(request):
             
             # 如果更新课程名称，检查新名称是否已存在
             if "ai_product_name" in request_data:
+                # 标准化AI产品名称（移除多余空格）
+                ai_product_name = ' '.join(request_data["ai_product_name"].split())
+                request_data["ai_product_name"] = ai_product_name
+                
                 existing_ai_product = await business_crud.get_ai_product_by_filter(
                     db, 
-                    {"ai_product_name": request_data["ai_product_name"]}
+                    {"ai_product_name": ai_product_name, "is_deleted": False}
                 )
                 if existing_ai_product and existing_ai_product.ai_product_id != ai_product_id:
                     return ApiResponse.error(
                         message="AI产品名称已存在",
                         status_code=status_codes.HTTP_409_CONFLICT
+                    )
+                
+                existing_del_ai_product = await business_crud.get_ai_product_by_filter(
+                    db, 
+                    {"ai_product_name": ai_product_name, "is_deleted": True}
+                )
+                if existing_del_ai_product:
+                    await business_crud.delete_ai_product_permanently(db, existing_del_ai_product.ai_product_id)
+                
+                # 同步更新权益规则表中的产品名称
+                try:
+                    # 更新权益规则表中的产品名称
+                    await business_crud.update_entitlement_rules_by_ai_product_id(
+                        db,
+                        ai_product_id,
+                        {"product_name": ai_product_name}
+                    )
+                    
+                    # 更新用户权益表中的产品名称
+                    await business_crud.update_user_entitlements_by_ai_product_id(
+                        db,
+                        ai_product_id,
+                        {"product_name": ai_product_name}
+                    )
+                except Exception as e:
+                    logger.error(f"同步更新权益规则和用户权益失败: {str(e)}")
+                    return ApiResponse.error(
+                        message="更新AI产品名称失败，同步更新权益规则和用户权益时出错",
+                        status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
                     )
             
             try:
@@ -395,7 +511,7 @@ async def get_ai_product_service(request):
             if ai_product_id:
                 ai_product = await business_crud.get_ai_product(db, ai_product_id)
             else:
-                ai_product = await business_crud.get_ai_product_by_filter(db, {"ai_product_name": ai_product_name})
+                ai_product = await business_crud.get_ai_product_by_filter(db, {"ai_product_name": ai_product_name, "is_deleted": False})
                 
             if not ai_product:
                 return ApiResponse.not_found("AI产品不存在")
@@ -533,6 +649,24 @@ async def delete_ai_product_service(request):
         )
 
 
+async def delete_ai_product_permanently_service(request):
+    """
+    彻底删除AI产品服务
+    """
+    try:
+        ai_product_id = request.path_params.get("ai_product_id")
+        if not ai_product_id:
+            return ApiResponse.validation_error("AI产品ID不能为空")
+            
+        async with AsyncSessionLocal() as db:
+            await business_crud.delete_ai_product_permanently(db, ai_product_id)
+            return ApiResponse.success(message="AI产品彻底删除成功")
+    except Exception as e:
+        logger.error(f"彻底删除AI产品服务异常: {str(e)}")
+        return ApiResponse.error(
+            message="彻底删除AI产品失败",
+            status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 
 async def create_entitlement_rule_service(request):
@@ -559,7 +693,7 @@ async def create_entitlement_rule_service(request):
                 return ApiResponse.not_found("AI产品不存在")
             
             # 检查课程和AI产品的组合是否已存在
-            filters = {"course_id": course_id, "ai_product_id": ai_product_id}
+            filters = {"course_id": course_id, "ai_product_id": ai_product_id, "is_deleted": False}
             existing_rule = await business_crud.get_entitlement_rule_by_filter(db, filters)
             if existing_rule:
                 return ApiResponse.error(
@@ -619,7 +753,7 @@ async def update_entitlement_rule_service(request):
             
             try:
                 if "product_name" in request_data:
-                    ai_product = await business_crud.get_ai_product_by_filter(db, {"ai_product_name": request_data["product_name"]})
+                    ai_product = await business_crud.get_ai_product_by_filter(db, {"ai_product_name": request_data["product_name"], "is_deleted": False})
                     if not ai_product:
                         return ApiResponse.not_found("AI产品不存在")
                     request_data["product_name"] = ai_product.ai_product_name
@@ -631,7 +765,7 @@ async def update_entitlement_rule_service(request):
                     request_data["product_name"] = ai_product.ai_product_name
 
                 if "course_name" in request_data:
-                    course = await business_crud.get_course_by_filter(db, {"course_name": request_data["course_name"]})
+                    course = await business_crud.get_course_by_filter(db, {"course_name": request_data["course_name"], "is_deleted": False})
                     if not course:
                         return ApiResponse.not_found("课程不存在")
                     request_data["course_id"] = course.course_id
@@ -808,6 +942,10 @@ async def create_order_service(request):
         if not all([order_id, phone, course_name, purchase_time, is_refund]):
             return ApiResponse.validation_error("订单号、手机号、课程名称、购买时间、是否退款不能为空")
             
+        # 标准化课程名称（移除多余空格）
+        course_name = ' '.join(course_name.split())
+        order_data["course_name"] = course_name
+            
         # 转换is_refund为布尔值
         is_refund_bool = True if is_refund == "已退款" else False
         
@@ -820,7 +958,7 @@ async def create_order_service(request):
             
         async with AsyncSessionLocal() as db:
             # 根据课程名称获取课程ID
-            course = await business_crud.get_course_by_filter(db, {"course_name": course_name})
+            course = await business_crud.get_course_by_filter(db, {"course_name": course_name, "is_deleted": False})
             if not course:
                 return ApiResponse.not_found("课程不存在")
             
@@ -946,7 +1084,7 @@ async def update_order_service(request):
             
             # 如果更新课程名称，检查新课程是否存在并获取课程ID
             if "course_name" in update_data:
-                course = await business_crud.get_course_by_filter(db, {"course_name": update_data["course_name"]})
+                course = await business_crud.get_course_by_filter(db, {"course_name": update_data["course_name"], "is_deleted": False})
                 if not course:
                     return ApiResponse.not_found("课程不存在")
                 # 替换course_name为course_id
@@ -1073,7 +1211,7 @@ async def get_orders_by_filter_service(request):
             filters["phone"] = request_data["phone"]
         if "course_name" in request_data:
             async with AsyncSessionLocal() as db:
-                course = await business_crud.get_course_by_filter(db, {"course_name": request_data["course_name"]})
+                course = await business_crud.get_course_by_filter(db, {"course_name": request_data["course_name"], "is_deleted": False})
                 if not course:
                     return ApiResponse.not_found("课程不存在")
                 filters["course_id"] = course.course_id
@@ -1769,6 +1907,251 @@ async def generate_user_entitlement_from_order_service(request):
         logger.error(f"生成用户权益服务异常: {str(e)}")
         return ApiResponse.error(
             message="生成用户权益失败",
+            status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+async def batch_generate_user_entitlements_service(request):
+    """
+    批量根据订单生成用户权益服务
+    """
+    try:
+        async with AsyncSessionLocal() as db:
+            # 获取所有未生成权益的订单，不使用分页
+            filters = {
+                "is_generate": False,
+                "is_deleted": False
+            }
+            # 使用 get_orders_by_filters 函数，但设置 page_size 为一个大数以确保获取所有记录
+            orders, total_count = await business_crud.get_orders_by_filters(
+                db, 
+                filters=filters,
+                page=1,
+                page_size=10000  # 设置一个足够大的数来获取所有记录
+            )
+            
+            if not orders:
+                return ApiResponse.success(
+                    message="没有需要生成权益的订单",
+                    data={
+                        "total": 0,
+                        "success": 0,
+                        "error": 0,
+                        "error_messages": []
+                    }
+                )
+            
+            success_count = 0
+            error_count = 0
+            error_messages = []
+            
+            for order in orders:
+                try:
+                    # 检查订单是否已退款
+                    if order.is_refund:
+                        error_message = f"订单 {order.order_id} 已退款，无法生成权益"
+                        error_messages.append(error_message)
+                        error_count += 1
+                        # 记录错误
+                        await business_crud.create_batch_generate_error(db, {
+                            "order_id": order.order_id,
+                            "error_message": error_message
+                        })
+                        continue
+                    
+                    # 根据course_id查询权益规则
+                    rule = await business_crud.get_entitlement_rule_by_filter(
+                        db, 
+                        {"course_id": order.course_id, "is_deleted": False}
+                    )
+                    if not rule:
+                        error_message = f"订单 {order.order_id} 未找到对应的权益规则"
+                        error_messages.append(error_message)
+                        error_count += 1
+                        # 记录错误
+                        await business_crud.create_batch_generate_error(db, {
+                            "order_id": order.order_id,
+                            "error_message": error_message
+                        })
+                        continue
+                    
+                    # 计算权益有效期
+                    start_date = datetime.utcnow()
+                    end_date = start_date + timedelta(days=rule.validity_days)
+                    
+                    # 准备用户权益数据
+                    entitlement_data = {
+                        "entitlement_id": generate_entitlement_id(),
+                        "phone": order.phone,
+                        "rule_id": rule.rule_id,
+                        "course_name": rule.course_name,
+                        "product_name": rule.product_name,
+                        "ai_product_id": rule.ai_product_id,
+                        "start_date": start_date,
+                        "end_date": end_date,
+                        "is_active": True,
+                        "daily_remaining": rule.daily_limit,
+                        "is_deleted": False
+                    }
+                    
+                    # 创建用户权益
+                    await business_crud.create_user_entitlement(db, entitlement_data)
+                    
+                    # 更新订单的is_generate状态
+                    await business_crud.update_order(db, order.order_id, {"is_generate": True})
+                    
+                    success_count += 1
+                    
+                except Exception as e:
+                    logger.error(f"生成订单 {order.order_id} 的权益失败: {str(e)}")
+                    error_message = f"订单 {order.order_id} 生成权益失败: {str(e)}"
+                    error_messages.append(error_message)
+                    error_count += 1
+                    # 记录错误
+                    await business_crud.create_batch_generate_error(db, {
+                        "order_id": order.order_id,
+                        "error_message": error_message
+                    })
+                    continue
+            
+            # 返回处理结果
+            return ApiResponse.success(
+                data={
+                    "total": total_count,
+                    "success": success_count,
+                    "error": error_count,
+                    "error_messages": error_messages
+                },
+                message=f"成功生成 {success_count} 条用户权益，失败 {error_count} 条"
+            )
+            
+    except Exception as e:
+        logger.error(f"批量生成用户权益服务异常: {str(e)}")
+        return ApiResponse.error(
+            message="批量生成用户权益失败",
+            status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+async def get_upload_error_orders_service(request):
+    """
+    获取所有上传错误订单记录服务
+    """
+    try:
+        # 获取分页参数
+        try:
+            page = int(request.query_params.get("page", "1"))
+            page_size = int(request.query_params.get("page_size", "10"))
+        except ValueError:
+            page = 1
+            page_size = 10
+        
+        # 验证分页参数
+        if page < 1:
+            page = 1
+        if page_size < 1 or page_size > 100:
+            page_size = 10
+            
+        async with AsyncSessionLocal() as db:
+            # 添加过滤条件，只获取未删除的错误订单
+            filters = {"is_deleted": False}
+            # 按创建时间倒序排序
+            order_by = {"created_at": "desc"}
+            
+            try:
+                error_orders = await business_crud.get_upload_error_orders_by_filters(db, filters)
+                
+                # 计算总记录数
+                total_count = len(error_orders)
+                
+                # 手动分页
+                start_idx = (page - 1) * page_size
+                end_idx = start_idx + page_size
+                paginated_orders = error_orders[start_idx:end_idx]
+                
+                # 计算总页数
+                total_pages = (total_count + page_size - 1) // page_size
+                
+                return ApiResponse.success(
+                    data={
+                        "items": [order.to_dict() for order in paginated_orders],
+                        "total": total_count,
+                        "page": page,
+                        "page_size": page_size,
+                        "total_pages": total_pages
+                    },
+                    message="获取上传错误订单记录成功"
+                )
+            except Exception as e:
+                logger.error(f"查询上传错误订单记录失败: {str(e)}")
+                return ApiResponse.error(
+                    message="获取上传错误订单记录失败",
+                    status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+    except Exception as e:
+        logger.error(f"获取上传错误订单记录服务异常: {str(e)}")
+        return ApiResponse.error(
+            message="获取上传错误订单记录失败",
+            status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+async def get_batch_generate_errors_service(request):
+    """
+    获取所有批量生成权益错误记录服务
+    """
+    try:
+        # 获取分页参数
+        try:
+            page = int(request.query_params.get("page", "1"))
+            page_size = int(request.query_params.get("page_size", "10"))
+        except ValueError:
+            page = 1
+            page_size = 10
+        
+        # 验证分页参数
+        if page < 1:
+            page = 1
+        if page_size < 1 or page_size > 100:
+            page_size = 10
+            
+        async with AsyncSessionLocal() as db:
+            # 添加过滤条件，只获取未删除的错误记录
+            filters = {"is_deleted": False}
+            # 按创建时间倒序排序
+            order_by = {"created_at": "desc"}
+            
+            try:
+                error_records = await business_crud.get_batch_generate_errors_by_filters(db, filters)
+                
+                # 计算总记录数
+                total_count = len(error_records)
+                
+                # 手动分页
+                start_idx = (page - 1) * page_size
+                end_idx = start_idx + page_size
+                paginated_records = error_records[start_idx:end_idx]
+                
+                # 计算总页数
+                total_pages = (total_count + page_size - 1) // page_size
+                
+                return ApiResponse.success(
+                    data={
+                        "items": [record.to_dict() for record in paginated_records],
+                        "total": total_count,
+                        "page": page,
+                        "page_size": page_size,
+                        "total_pages": total_pages
+                    },
+                    message="获取批量生成权益错误记录成功"
+                )
+            except Exception as e:
+                logger.error(f"查询批量生成权益错误记录失败: {str(e)}")
+                return ApiResponse.error(
+                    message="获取批量生成权益错误记录失败",
+                    status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+    except Exception as e:
+        logger.error(f"获取批量生成权益错误记录服务异常: {str(e)}")
+        return ApiResponse.error(
+            message="获取批量生成权益错误记录失败",
             status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
         )
 

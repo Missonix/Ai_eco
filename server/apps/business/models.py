@@ -201,5 +201,69 @@ class User_entitlements(Base):
             logger.error(f"Error converting user to dict: {str(e)}")
             return {}
         
-
+# 上传错误订单模型
+class Upload_error_orders(Base):
+    """
+    上传错误订单模型，用于定义上传错误订单表
+    """
+    __tablename__ = 'upload_error_orders'
     
+    id = Column(Integer, primary_key=True, index=True) # 主键
+    order_id = Column(String(50), nullable=False) # 订单ID
+    error_message = Column(String(255), nullable=False) # 错误信息
+    created_at = Column(DateTime, default=datetime.utcnow) # 创建时间
+    is_deleted = Column(Boolean, default=False) # 是否删除(逻辑删除)
+    
+    def __repr__(self):
+        return (f"Upload_error_orders(id={self.id}, "
+                f"order_id={self.order_id}, "
+                f"error_message={self.error_message}, "
+                f"created_at={self.created_at}, is_deleted={self.is_deleted}")
+        
+    def to_dict(self):
+        """转换为字典"""
+        try:
+            return {
+                "id": self.id,
+                "order_id": self.order_id,
+                "error_message": self.error_message,
+                "created_at": self.created_at.isoformat() if self.created_at else None
+            }
+        except Exception as e:
+            logger.error(f"Error converting upload_error_orders to dict: {str(e)}")
+            return {}
+
+# 批量生成权益错误模型
+class Batch_generate_entitlements_error(Base):
+    """
+    批量生成权益错误模型，用于定义批量生成权益错误表
+    """
+    __tablename__ = 'batch_generate_entitlements_error'
+    
+    id = Column(Integer, primary_key=True, index=True) # 主键
+    order_id = Column(String(50), nullable=False) # 订单ID
+    error_message = Column(String(255), nullable=False) # 错误信息
+    created_at = Column(DateTime, default=datetime.utcnow) # 创建时间
+    is_deleted = Column(Boolean, default=False) # 是否删除(逻辑删除)
+    
+    def __repr__(self):
+        return (f"Batch_generate_entitlements_error(id={self.id}, "
+                f"order_id={self.order_id}, "
+                f"error_message={self.error_message}, "
+                f"created_at={self.created_at}, is_deleted={self.is_deleted}")
+    
+    def to_dict(self):
+        """转换为字典"""
+        try:
+            return {
+                "id": self.id,
+                "order_id": self.order_id,
+                "error_message": self.error_message,
+                "created_at": self.created_at.isoformat() if self.created_at else None
+            }
+        except Exception as e:
+            logger.error(f"Error converting batch_generate_entitlements_error to dict: {str(e)}")
+            return {}
+    
+
+

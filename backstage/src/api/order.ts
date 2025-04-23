@@ -77,4 +77,15 @@ export const orderApi = {
   generateEntitlement(orderId: string) {
     return axios.get(`${BASE_URL}/user_entitlements/generate/${orderId}`)
   },
+
+  // 批量上传订单
+  uploadOrders(file: File) {
+    const formData = new FormData()
+    formData.append('file', file)
+    return axios.post(`${BASE_URL}/orders/upload`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+  },
 }

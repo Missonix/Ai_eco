@@ -1,9 +1,9 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.sql import func
 from core.database import AsyncSessionLocal
 from core.logger import setup_logger
-from apps.business.models import Courses, Entitlement_rules, Orders, User_entitlements
+from apps.business.models import Courses, Entitlement_rules, Orders, User_entitlements, Upload_error_orders, Batch_generate_entitlements_error
 from common.utils.dynamic_query import dynamic_query
 
 # 设置日志记录器
@@ -127,6 +127,19 @@ async def check_course_exists(course_id: str) -> bool:
         logger.error(f"Error checking course existence: {str(e)}")
         raise
 
+# 彻底删除
+async def delete_course_permanently(db: AsyncSession, course_id: str):
+    """
+    彻底删除课程
+    """
+    target_course = await db.get(Courses, course_id)
+    if target_course is None:
+        raise Exception("Course not found")
+    
+    await db.delete(target_course)
+    await db.commit()
+    return target_course
+
 
 
 
@@ -243,6 +256,19 @@ async def check_ai_product_exists(ai_product_id: str) -> bool:
         logger.error(f"Error checking ai_product existence: {str(e)}")
         raise
 
+# 彻底删除
+async def delete_ai_product_permanently(db: AsyncSession, ai_product_id: str):
+    """
+    彻底删除AI产品
+    """
+    target_ai_product = await db.get(Ai_products, ai_product_id)
+    if target_ai_product is None:
+        raise Exception("AI_Product not found")
+    
+    await db.delete(target_ai_product)
+    await db.commit()
+    return target_ai_product
+
 
 
 
@@ -328,6 +354,94 @@ async def check_entitlement_rule_exists(rule_id: str) -> bool:
     except Exception as e:
         logger.error(f"Error checking entitlement rule existence: {str(e)}")
         raise
+
+async def update_entitlement_rules_by_course_id(db: AsyncSession, course_id: str, update_data: dict):
+    """
+    根据课程ID更新权益规则
+    """
+    try:
+        # 构建更新查询
+        stmt = update(Entitlement_rules).where(
+            Entitlement_rules.course_id == course_id,
+            Entitlement_rules.is_deleted == False
+        ).values(**update_data)
+        
+        # 执行更新
+        await db.execute(stmt)
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        raise e
+
+async def update_user_entitlements_by_course_id(db: AsyncSession, course_id: str, update_data: dict):
+    """
+    根据课程ID更新用户权益
+    """
+    try:
+        # 首先获取相关的权益规则ID
+        stmt = select(Entitlement_rules.rule_id).where(
+            Entitlement_rules.course_id == course_id,
+            Entitlement_rules.is_deleted == False
+        )
+        result = await db.execute(stmt)
+        rule_ids = [row[0] for row in result]
+        
+        if rule_ids:
+            # 更新用户权益
+            stmt = update(User_entitlements).where(
+                User_entitlements.rule_id.in_(rule_ids),
+                User_entitlements.is_deleted == False
+            ).values(**update_data)
+            
+            await db.execute(stmt)
+            await db.commit()
+    except Exception as e:
+        await db.rollback()
+        raise e
+
+async def update_entitlement_rules_by_ai_product_id(db: AsyncSession, ai_product_id: str, update_data: dict):
+    """
+    根据AI产品ID更新权益规则
+    """
+    try:
+        # 构建更新查询
+        stmt = update(Entitlement_rules).where(
+            Entitlement_rules.ai_product_id == ai_product_id,
+            Entitlement_rules.is_deleted == False
+        ).values(**update_data)
+        
+        # 执行更新
+        await db.execute(stmt)
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        raise e
+
+async def update_user_entitlements_by_ai_product_id(db: AsyncSession, ai_product_id: str, update_data: dict):
+    """
+    根据AI产品ID更新用户权益
+    """
+    try:
+        # 首先获取相关的权益规则ID
+        stmt = select(Entitlement_rules.rule_id).where(
+            Entitlement_rules.ai_product_id == ai_product_id,
+            Entitlement_rules.is_deleted == False
+        )
+        result = await db.execute(stmt)
+        rule_ids = [row[0] for row in result]
+        
+        if rule_ids:
+            # 更新用户权益
+            stmt = update(User_entitlements).where(
+                User_entitlements.rule_id.in_(rule_ids),
+                User_entitlements.is_deleted == False
+            ).values(**update_data)
+            
+            await db.execute(stmt)
+            await db.commit()
+    except Exception as e:
+        await db.rollback()
+        raise e
 
 
 
@@ -546,3 +660,119 @@ async def check_user_entitlement_exists(entitlement_id: str) -> bool:
     except Exception as e:
         logger.error(f"Error checking user entitlement existence: {str(e)}")
         raise
+
+
+
+# 上传错误订单CRUD操作
+async def create_upload_error_order(db: AsyncSession, error_data: dict):
+    """创建上传错误订单记录"""
+    try:
+        error_order = Upload_error_orders(**error_data)
+        db.add(error_order)
+        await db.commit()
+        await db.refresh(error_order)
+        return error_order
+    except Exception as e:
+        await db.rollback()
+        raise e
+
+async def get_upload_error_order(db: AsyncSession, id: int):
+    """获取单个上传错误订单记录"""
+    return await db.get(Upload_error_orders, id)
+
+async def get_upload_error_orders_by_filters(db: AsyncSession, filters: dict):
+    """根据条件查询上传错误订单记录"""
+    query = select(Upload_error_orders).where(Upload_error_orders.is_deleted == False)
+    
+    if "order_id" in filters:
+        query = query.where(Upload_error_orders.order_id == filters["order_id"])
+    if "error_message" in filters:
+        query = query.where(Upload_error_orders.error_message == filters["error_message"])
+    if "created_at" in filters:
+        query = query.where(Upload_error_orders.created_at == filters["created_at"])
+        
+    result = await db.execute(query)
+    return result.scalars().all()
+
+async def update_upload_error_order(db: AsyncSession, id: int, update_data: dict):
+    """更新上传错误订单记录"""
+    try:
+        error_order = await db.get(Upload_error_orders, id)
+        if error_order:
+            for key, value in update_data.items():
+                setattr(error_order, key, value)
+            await db.commit()
+            await db.refresh(error_order)
+        return error_order
+    except Exception as e:
+        await db.rollback()
+        raise e
+
+async def delete_upload_error_order(db: AsyncSession, id: int):
+    """删除上传错误订单记录"""
+    try:
+        error_order = await db.get(Upload_error_orders, id)
+        if error_order:
+            error_order.is_deleted = True
+            await db.commit()
+        return error_order
+    except Exception as e:
+        await db.rollback()
+        raise e
+
+# 批量生成权益错误CRUD操作
+async def create_batch_generate_error(db: AsyncSession, error_data: dict):
+    """创建批量生成权益错误记录"""
+    try:
+        error_record = Batch_generate_entitlements_error(**error_data)
+        db.add(error_record)
+        await db.commit()
+        await db.refresh(error_record)
+        return error_record
+    except Exception as e:
+        await db.rollback()
+        raise e
+
+async def get_batch_generate_error(db: AsyncSession, id: int):
+    """获取单个批量生成权益错误记录"""
+    return await db.get(Batch_generate_entitlements_error, id)
+
+async def get_batch_generate_errors_by_filters(db: AsyncSession, filters: dict):
+    """根据条件查询批量生成权益错误记录"""
+    query = select(Batch_generate_entitlements_error).where(Batch_generate_entitlements_error.is_deleted == False)
+    
+    if "order_id" in filters:
+        query = query.where(Batch_generate_entitlements_error.order_id == filters["order_id"])
+    if "error_message" in filters:
+        query = query.where(Batch_generate_entitlements_error.error_message == filters["error_message"])
+    if "created_at" in filters:
+        query = query.where(Batch_generate_entitlements_error.created_at == filters["created_at"])
+        
+    result = await db.execute(query)
+    return result.scalars().all()
+
+async def update_batch_generate_error(db: AsyncSession, id: int, update_data: dict):
+    """更新批量生成权益错误记录"""
+    try:
+        error_record = await db.get(Batch_generate_entitlements_error, id)
+        if error_record:
+            for key, value in update_data.items():
+                setattr(error_record, key, value)
+            await db.commit()
+            await db.refresh(error_record)
+        return error_record
+    except Exception as e:
+        await db.rollback()
+        raise e
+
+async def delete_batch_generate_error(db: AsyncSession, id: int):
+    """删除批量生成权益错误记录"""
+    try:
+        error_record = await db.get(Batch_generate_entitlements_error, id)
+        if error_record:
+            error_record.is_deleted = True
+            await db.commit()
+        return error_record
+    except Exception as e:
+        await db.rollback()
+        raise e
