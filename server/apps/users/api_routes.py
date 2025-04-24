@@ -110,3 +110,92 @@ def users_api_routes(app):
         检查token状态
         """
         return await check_token_api(request)
+    
+
+    @app.post("/api/admins")
+    @error_handler
+    @request_logger
+    @rate_limit(max_requests=100, time_window=60)
+    async def create_admin(request):
+        """
+        创建管理员
+        """
+        from apps.users.api import create_admin_api
+        return await create_admin_api(request)
+    
+    @app.patch("/api/admins/:admin_id")
+    @error_handler
+    @request_logger
+    @rate_limit(max_requests=100, time_window=60)
+    async def update_admin(request):
+        """
+        更新管理员
+        """
+        from apps.users.api import update_admin_api
+        return await update_admin_api(request)
+    
+    @app.delete("/api/admins/:admin_id")
+    @error_handler
+    @request_logger
+    @rate_limit(max_requests=100, time_window=60)
+    async def delete_admin(request):
+        """
+        删除管理员
+        """
+        from apps.users.api import delete_admin_api
+        return await delete_admin_api(request)
+    
+    @app.get("/api/admins/:admin_id")
+    @error_handler
+    @request_logger
+    @rate_limit(max_requests=100, time_window=60)
+    async def get_admin(request):
+        """
+        获取管理员
+        """
+        from apps.users.api import get_admin_api
+        return await get_admin_api(request)
+    
+    @app.get("/api/admins")
+    @error_handler
+    @request_logger
+    @rate_limit(max_requests=100, time_window=60)
+    async def get_admins(request):
+        """
+        获取所有管理员
+        """
+        from apps.users.api import get_admins_api
+        return await get_admins_api(request)
+    
+    @app.post("/api/admins/login")
+    @error_handler
+    @request_logger
+    @rate_limit(max_requests=100, time_window=60)
+    async def login_admin(request):
+        """
+        管理员登录
+        """
+        from apps.users.api import login_admin_api
+        return await login_admin_api(request)
+    
+    @app.post("/api/admins/logout")
+    @error_handler
+    @request_logger
+    @rate_limit(max_requests=100, time_window=60)
+    async def logout_admin(request):
+        """
+        管理员登出
+        """
+        from apps.users.api import logout_admin_api
+        return await logout_admin_api(request)
+    
+    @app.get("/api/users/count")
+    @error_handler
+    @request_logger
+    @rate_limit(max_requests=100, time_window=60)
+    async def get_user_count(request):
+        """
+        获取用户总数
+        """
+        from apps.users.api import get_user_count_api
+        return await get_user_count_api(request)

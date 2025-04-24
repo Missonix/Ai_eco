@@ -2155,6 +2155,157 @@ async def get_batch_generate_errors_service(request):
             status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
+# 获取课程总数
+async def get_course_count_service(request: Request) -> Response:
+    """
+    获取课程总数服务
+    """
+    try:
+        async with AsyncSessionLocal() as db:
+            # 获取过滤条件
+            filters = {"is_deleted": False}
+            
+            # 获取课程总数
+            courses, total_count = await business_crud.get_courses_by_filters(
+                db, 
+                filters=filters,
+                page=1,
+                page_size=1
+            )
+            
+            return ApiResponse.success(
+                data={
+                    "total": total_count
+                },
+                message="获取课程总数成功"
+            )
+    except Exception as e:
+        logger.error(f"获取课程总数失败: {str(e)}")
+        return ApiResponse.error(
+            message="获取课程总数失败",
+            status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+# 获取AI产品总数
+async def get_ai_product_count_service(request: Request) -> Response:
+    """
+    获取AI产品总数服务
+    """
+    try:
+        async with AsyncSessionLocal() as db:
+            # 获取过滤条件
+            filters = {"is_deleted": False}
+            
+            # 获取AI产品总数
+            products, total_count = await business_crud.get_ai_products_by_filters(
+                db, 
+                filters=filters,
+                page=1,
+                page_size=1
+            )
+            
+            return ApiResponse.success(
+                data={
+                    "total": total_count
+                },
+                message="获取AI产品总数成功"
+            )
+    except Exception as e:
+        logger.error(f"获取AI产品总数失败: {str(e)}")
+        return ApiResponse.error(
+            message="获取AI产品总数失败",
+            status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+# 获取权益规则总数
+async def get_entitlement_rule_count_service(request: Request) -> Response:
+    """
+    获取权益规则总数服务
+    """
+    try:
+        async with AsyncSessionLocal() as db:
+            # 获取过滤条件
+            filters = {"is_deleted": False}
+            
+            # 获取权益规则总数
+            rules = await business_crud.get_entitlement_rules_by_filters(db, filters)
+            total_count = len(rules)
+            
+            return ApiResponse.success(
+                data={
+                    "total": total_count
+                },
+                message="获取权益规则总数成功"
+            )
+    except Exception as e:
+        logger.error(f"获取权益规则总数失败: {str(e)}")
+        return ApiResponse.error(
+            message="获取权益规则总数失败",
+            status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+# 获取订单总数
+async def get_order_count_service(request: Request) -> Response:
+    """
+    获取订单总数服务
+    """
+    try:
+        async with AsyncSessionLocal() as db:
+            # 获取过滤条件
+            filters = {"is_deleted": False}
+            
+            # 获取订单总数
+            orders, total_count = await business_crud.get_orders_by_filters(
+                db, 
+                filters=filters,
+                page=1,
+                page_size=1
+            )
+            
+            return ApiResponse.success(
+                data={
+                    "total": total_count
+                },
+                message="获取订单总数成功"
+            )
+    except Exception as e:
+        logger.error(f"获取订单总数失败: {str(e)}")
+        return ApiResponse.error(
+            message="获取订单总数失败",
+            status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+# 获取用户权益总数
+async def get_user_entitlement_count_service(request: Request) -> Response:
+    """
+    获取用户权益总数服务
+    """
+    try:
+        async with AsyncSessionLocal() as db:
+            # 获取过滤条件
+            filters = {"is_deleted": False}
+            
+            # 获取用户权益总数
+            entitlements, total_count = await business_crud.get_user_entitlements_by_filters(
+                db, 
+                filters=filters,
+                page=1,
+                page_size=1
+            )
+            
+            return ApiResponse.success(
+                data={
+                    "total": total_count
+                },
+                message="获取用户权益总数成功"
+            )
+    except Exception as e:
+        logger.error(f"获取用户权益总数失败: {str(e)}")
+        return ApiResponse.error(
+            message="获取用户权益总数失败",
+            status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
 
 
 

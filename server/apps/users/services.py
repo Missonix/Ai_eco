@@ -666,3 +666,368 @@ async def get_userinfo(request):
         logger.error(f"无法获取用户信息: {str(e)}")
         response = ApiResponse.error(f"获取用户信息失败")
         return response
+
+# 管理员服务层函数
+async def create_admin_service(request):
+    """
+    创建管理员服务
+    """
+    try:
+        admin_data = request.json()
+        username = admin_data.get("username")
+        password = admin_data.get("password")
+        
+        # 确保必填字段都存在
+        if not all([username, password]):
+            return ApiResponse.validation_error("缺少必填字段")
+
+        # 检查管理员是否已存在
+        async with AsyncSessionLocal() as db:
+            admin_exists = await crud.check_username_exists(username)
+            if admin_exists:
+                return ApiResponse.error(
+                    message="管理员用户名已存在",
+                    status_code=status_codes.HTTP_409_CONFLICT
+                )
+
+            # 生成管理员ID
+            admin_data["admin_id"] = f"admin_{int(datetime.utcnow().timestamp())}"
+            # 加密密码
+            admin_data["password"] = get_password_hash(admin_data["password"])
+
+            try:
+                inserted_admin = await crud.create_admin(db, admin_data)
+                if not inserted_admin:
+                    raise Exception("Admin creation failed")
+                return ApiResponse.success(
+                    data=inserted_admin.to_dict(),
+                    message="管理员创建成功"
+                )
+            except Exception as e:
+                raise Exception(f"Database integrity error: {str(e)}")
+
+    except Exception as e:
+        logger.error(f"创建管理员失败: {str(e)}")
+        return ApiResponse.error(
+            message="创建管理员失败",
+            status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+async def update_admin_service(request):
+    """
+    更新管理员服务
+    """
+    try:
+        admin_id = request.path_params.get("admin_id")
+        admin_data = request.json()
+        
+        if not admin_id:
+            return ApiResponse.validation_error("管理员ID不能为空")
+            
+        async with AsyncSessionLocal() as db:
+            admin = await crud.get_admin(db, admin_id)
+            if not admin:
+                return ApiResponse.not_found("管理员不存在")
+            
+            # 如果更新密码，需要加密
+            if "password" in admin_data:
+                admin_data["password"] = get_password_hash(admin_data["password"])
+            
+            try:
+                updated_admin = await crud.update_admin(db, admin_id, admin_data)
+                return ApiResponse.success(
+                    data=updated_admin.to_dict(),
+                    message="管理员更新成功"
+                )
+            except Exception as e:
+                logger.error(f"更新管理员失败: {str(e)}")
+                return ApiResponse.error(
+                    message="更新管理员失败",
+                    status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+                
+    except Exception as e:
+        logger.error(f"更新管理员服务异常: {str(e)}")
+        return ApiResponse.error(
+            message="更新管理员失败",
+            status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+async def delete_admin_service(request):
+    """
+    删除管理员服务
+    """
+    try:
+        admin_id = request.path_params.get("admin_id")
+        
+        if not admin_id:
+            return ApiResponse.validation_error("管理员ID不能为空")
+            
+        async with AsyncSessionLocal() as db:
+            admin = await crud.get_admin(db, admin_id)
+            if not admin:
+                return ApiResponse.not_found("管理员不存在")
+            
+            try:
+                await crud.delete_admin(db, admin_id)
+                return ApiResponse.success(message="管理员删除成功")
+            except Exception as e:
+                logger.error(f"删除管理员失败: {str(e)}")
+                return ApiResponse.error(
+                    message="删除管理员失败",
+                    status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+                
+    except Exception as e:
+        logger.error(f"删除管理员服务异常: {str(e)}")
+        return ApiResponse.error(
+            message="删除管理员失败",
+            status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+async def get_admin_service(request):
+    """
+    获取单个管理员服务
+    """
+    try:
+        admin_id = request.path_params.get("admin_id")
+        
+        if not admin_id:
+            return ApiResponse.validation_error("管理员ID不能为空")
+            
+        async with AsyncSessionLocal() as db:
+            admin = await crud.get_admin(db, admin_id)
+            if not admin:
+                return ApiResponse.not_found("管理员不存在")
+            
+            return ApiResponse.success(
+                data=admin.to_dict(),
+                message="获取管理员成功"
+            )
+            
+    except Exception as e:
+        logger.error(f"获取管理员服务异常: {str(e)}")
+        return ApiResponse.error(
+            message="获取管理员失败",
+            status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+async def get_admins_service(request):
+    """
+    获取所有管理员服务
+    """
+    try:
+        # 获取分页参数
+        try:
+            page = int(request.query_params.get("page", "1"))
+            page_size = int(request.query_params.get("page_size", "10"))
+        except ValueError:
+            page = 1
+            page_size = 10
+        
+        # 验证分页参数
+        if page < 1:
+            page = 1
+        if page_size < 1 or page_size > 100:
+            page_size = 10
+            
+        # 获取过滤条件
+        filters = {"is_deleted": False}
+        if "username" in request.query_params:
+            filters["username"] = request.query_params.get("username")
+            
+        # 获取排序条件
+        order_by = {"created_at": "desc"}  # 默认按创建时间倒序排序
+            
+        async with AsyncSessionLocal() as db:
+            try:
+                admins, total_count = await crud.get_admins_by_filters(
+                    db, 
+                    filters=filters,
+                    order_by=order_by,
+                    page=page,
+                    page_size=page_size
+                )
+                
+                # 计算总页数
+                total_pages = (total_count + page_size - 1) // page_size
+                
+                return ApiResponse.success(
+                    data={
+                        "items": [admin.to_dict() for admin in admins],
+                        "total": total_count,
+                        "page": page,
+                        "page_size": page_size,
+                        "total_pages": total_pages
+                    },
+                    message="获取管理员列表成功"
+                )
+            except Exception as e:
+                logger.error(f"查询管理员列表失败: {str(e)}")
+                return ApiResponse.error(
+                    message="获取管理员列表失败",
+                    status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+    except Exception as e:
+        logger.error(f"获取管理员列表服务异常: {str(e)}")
+        return ApiResponse.error(
+            message="获取管理员列表失败",
+            status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+# 管理员登录
+async def login_admin_service(request):
+    """
+    管理员登录服务
+    """
+    try:
+        request_data = request.json()
+        username = request_data.get("username")
+        password = request_data.get("password")
+
+        if not username or not password:
+            logger.warning("Missing username or password")
+            return ApiResponse.validation_error("用户名和密码不能为空")
+
+        # 获取管理员响应
+        async with AsyncSessionLocal() as db:
+            admin = await crud.get_admin_by_filter(db, {"username": username})
+            if not admin:
+                return ApiResponse.not_found("管理员不存在")
+
+            if not verify_password(password, admin.password):
+                logger.warning(f"Invalid password attempt for username: {username}")
+                return ApiResponse.error(
+                    message="密码错误",
+                    status_code=status_codes.HTTP_401_UNAUTHORIZED
+                )
+
+            # 更新管理员登录时间
+            await crud.update_admin(db, admin.admin_id, {"last_login": datetime.utcnow()})
+            
+            # 生成Token
+            token_data = {
+                "admin_id": admin.admin_id,
+                "username": admin.username,
+                "type": "admin"  # 标记为管理员token
+            }
+            
+            # 创建访问令牌
+            access_token = TokenService.create_access_token(token_data)
+
+            # 创建响应
+            response = ApiResponse.success(
+                message="登录成功",
+                data={
+                    "admin_id": admin.admin_id,
+                    "username": admin.username,
+                    "access_token": access_token
+                }
+            )
+            
+            # 设置访问令牌到HttpOnly Cookie
+            response.headers["Set-Cookie"] = (
+                f"access_token=Bearer {access_token}; "
+                f"HttpOnly; Secure; Path=/; SameSite=Strict; "
+                f"Max-Age={30*60}"  # 30分钟
+            )
+
+            return response
+
+    except Exception as e:
+        logger.error(f"Error processing admin login: {str(e)}")
+        return ApiResponse.error(
+            message="登录处理失败",
+            status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+# 管理员退出登录
+async def logout_admin_service(request):
+    """
+    管理员退出登录服务
+    """
+    try:
+        # 从请求头获取token
+        auth_header = request.headers.get("Authorization")
+        logger.info(f"Authorization header: {auth_header}")
+        
+        if not auth_header:
+            logger.warning("No Authorization header found")
+            return ApiResponse.unauthorized("未找到访问令牌")
+            
+        # 处理Bearer token
+        if auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+            logger.info(f"Extracted Bearer token: {token}")
+        else:
+            token = auth_header
+            logger.info(f"Using raw token: {token}")
+            
+        if not token:
+            logger.warning("No token found after processing")
+            return ApiResponse.unauthorized("未找到访问令牌")
+            
+        try:
+            payload = TokenService.decode_token(token)
+            logger.info(f"Decoded token payload: {payload}")
+            
+            if not payload:
+                logger.warning("Failed to decode token")
+                return ApiResponse.unauthorized("无效的访问令牌")
+                
+            # 验证是否是管理员token
+            if payload.get("type") != "access" or not payload.get("admin_id"):
+                logger.warning(f"Invalid token type or missing admin_id: {payload}")
+                return ApiResponse.unauthorized("无效的管理员令牌")
+            
+            # 将令牌加入黑名单
+            TokenService.revoke_token(token)
+            logger.info("Token successfully revoked")
+            
+            # 创建响应
+            response = ApiResponse.success(message="退出登录成功")
+            
+            # 清除Cookie中的访问令牌
+            response.headers["Set-Cookie"] = (
+                "access_token=; HttpOnly; Secure; Path=/; SameSite=Strict; Max-Age=0"
+            )
+            
+            return response
+            
+        except Exception as token_error:
+            logger.error(f"Token processing error: {str(token_error)}")
+            return ApiResponse.unauthorized("令牌处理失败")
+            
+    except Exception as e:
+        logger.error(f"Error processing admin logout: {str(e)}")
+        return ApiResponse.error(
+            message="退出登录失败",
+            status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+# 获取用户总数
+async def get_user_count_service(request):
+    """
+    获取用户总数服务
+    """
+    try:
+        async with AsyncSessionLocal() as db:
+            # 获取过滤条件
+            filters = {"is_deleted": False}
+            
+            # 获取用户总数
+            users = await crud.get_users_by_filters(db, filters)
+            total_count = len(users)
+            
+            return ApiResponse.success(
+                data={
+                    "total": total_count
+                },
+                message="获取用户总数成功"
+            )
+    except Exception as e:
+        logger.error(f"获取用户总数失败: {str(e)}")
+        return ApiResponse.error(
+            message="获取用户总数失败",
+            status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+        )

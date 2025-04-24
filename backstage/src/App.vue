@@ -1,7 +1,6 @@
 <template>
   <el-config-provider>
     <div class="app-container">
-      <Navbar />
       <div class="main-content">
         <router-view />
       </div>
@@ -11,7 +10,6 @@
 
 <script setup lang="ts">
 import { ElConfigProvider } from 'element-plus'
-import Navbar from '@/components/Navbar.vue'
 </script>
 
 <style>

@@ -9,6 +9,11 @@
           </svg>
         </router-link>
         <h1 class="text-xl font-bold text-center flex-1 pr-6">直播话术违规词AI检测</h1>
+        <button @click="showHistory = true" class="text-indigo-600 hover:text-indigo-700">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </button>
       </div>
     </header>
 
@@ -42,7 +47,7 @@
           <div class="flex items-center justify-between">
             <span class="text-gray-600">是否违规:</span>
             <span :class="checkResult.is_Violations === '是' ? 'text-red-500' : 'text-green-500'" class="font-medium">
-              {{ checkResult.is_Violations }}
+              {{ checkResult.is_Violations === '是' ? '违规' : '合规' }}
             </span>
           </div>
           
@@ -84,8 +89,6 @@
             <div class="font-medium">优化建议:</div>
             <div v-for="(suggestion, index) in [
               checkResult.op,
-              // checkResult.optimization2,
-              // checkResult.optimization3
             ]" :key="index" class="bg-green-50 p-3 rounded-lg text-sm text-gray-600">
               {{ suggestion }}
             </div>
@@ -100,6 +103,58 @@
       </div>
     </main>
 
+    <!-- 历史报告弹窗 -->
+    <div v-if="showHistory" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-lg w-full max-w-md max-h-[80vh] overflow-hidden">
+        <div class="p-4 border-b flex justify-between items-center">
+          <h2 class="text-lg font-bold">历史检测报告</h2>
+          <button @click="showHistory = false" class="text-gray-500 hover:text-gray-700">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="p-4 overflow-y-auto max-h-[calc(80vh-4rem)]">
+          <div v-if="loadingHistory" class="text-center py-4">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+            <p class="mt-2 text-gray-600">加载中...</p>
+          </div>
+          <div v-else-if="historyRecords.length === 0" class="text-center py-4 text-gray-500">
+            暂无历史记录
+          </div>
+          <div v-else class="space-y-4">
+            <div v-for="record in historyRecords" :key="record.id" class="bg-gray-50 rounded-lg p-4">
+              <div class="flex justify-between items-start mb-2">
+                <div class="text-sm text-gray-500">{{ formatDate(record.created_at) }}</div>
+                <span :class="record.is_violation ? 'text-red-500' : 'text-green-500'" class="text-sm font-medium">
+                  {{ record.is_violation ? '违规' : '合规' }}
+                </span>
+              </div>
+              <div class="space-y-2">
+                <div class="text-sm">
+                  <div class="font-medium text-gray-700">原文：</div>
+                  <div class="text-gray-600">{{ record.input }}</div>
+                </div>
+                <div v-if="record.words" class="text-sm">
+                  <div class="font-medium text-gray-700">违规词：</div>
+                  <div class="flex flex-wrap gap-1">
+                    <span v-for="word in record.words.split(',')" :key="word"
+                      class="bg-red-100 text-red-800 px-2 py-0.5 rounded-full text-xs">
+                      {{ word }}
+                    </span>
+                  </div>
+                </div>
+                <div v-if="record.op" class="text-sm">
+                  <div class="font-medium text-gray-700">优化建议：</div>
+                  <div class="text-gray-600">{{ record.op }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 免责声明 -->
     <footer class="mt-8 text-xs text-gray-400 text-center px-4">
       提示：当前检测依据为平台过往违规话术特征库，因政策动态调整可能存在偏差，最终违规判定请以官方审核结果为准，本工具结果仅作学习参考。
@@ -108,7 +163,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import axios from 'axios'
 import { useRouter } from 'vue-router'
 import { aiProducts, type AIProduct } from '@/config/aiProducts'
@@ -122,15 +177,78 @@ interface CheckResult {
   words?: string
   reason?: string
   op?: string
-  // optimization2?: string
-  // optimization3?: string
   ideas?: string
+}
+
+interface HistoryRecord {
+  id: number
+  phone: string
+  input: string
+  is_violation: boolean
+  words: string
+  reasons: string
+  op: string
+  ideas: string
+  old_score: number
+  new_score: number
+  old_rating: string
+  new_rating: string
+  created_at: string
 }
 
 const router = useRouter()
 const inputText = ref('')
 const loading = ref(false)
 const checkResult = ref<CheckResult | null>(null)
+const showHistory = ref(false)
+const loadingHistory = ref(false)
+const historyRecords = ref<HistoryRecord[]>([])
+
+// 格式化日期
+const formatDate = (dateString: string) => {
+  const date = new Date(dateString)
+  return date.toLocaleDateString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+// 获取历史记录
+const fetchHistory = async () => {
+  const userInfo = localStorage.getItem('userInfo')
+  if (!userInfo) {
+    alert('请先登录后查看历史记录')
+    router.push('/user')
+    return
+  }
+
+  loadingHistory.value = true
+  try {
+    const userData = JSON.parse(userInfo)
+    const response = await axios.get(`http://10.7.21.239:4455/vio_word/words/phone/${userData.phone}`)
+    
+    if (response.data.code === 200) {
+      historyRecords.value = response.data.data.items
+    } else {
+      throw new Error(response.data.message || '获取历史记录失败')
+    }
+  } catch (error: any) {
+    console.error('获取历史记录失败:', error)
+    alert(error.response?.data?.message || '获取历史记录失败，请稍后重试')
+  } finally {
+    loadingHistory.value = false
+  }
+}
+
+// 监听showHistory变化
+watch(showHistory, (newVal: boolean) => {
+  if (newVal) {
+    fetchHistory()
+  }
+})
 
 // 开始检测
 const startCheck = async () => {

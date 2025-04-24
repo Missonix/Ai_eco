@@ -23,5 +23,12 @@ export const aiProducts: AIProduct[] = [
     description: '测试产品1的功能描述',
     ai_product_id: 'AI_test_product1',
     component: Home
+  },
+  {
+    id: 'test_product2',
+    name: '测试产品2',
+    description: '测试产品2的功能描述',
+    ai_product_id: 'AI_test_product2',
+    component: Home
   }
 ] 

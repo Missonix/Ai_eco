@@ -109,4 +109,73 @@ async def get_vio_word_service(request: Request) -> Response:
         return ApiResponse.error(
             message="获取违规词检测记录失败",
             status_code=500
+        )
+
+async def get_vio_words_by_phone_service(request: Request) -> Response:
+    """
+    根据手机号搜索违规词检测记录服务
+    """
+    try:
+        # 获取手机号
+        phone = request.path_params.get("phone")
+        if not phone:
+            return ApiResponse.validation_error("手机号不能为空")
+            
+        # 获取分页参数
+        try:
+            page = int(request.query_params.get("page", "1"))
+            page_size = int(request.query_params.get("page_size", "10"))
+        except ValueError:
+            page = 1
+            page_size = 10
+        
+        # 验证分页参数
+        if page < 1:
+            page = 1
+        if page_size < 1 or page_size > 100:
+            page_size = 10
+            
+        # 构建过滤条件
+        filters = {
+            "phone": phone,
+            "is_deleted": False
+        }
+        
+        # 获取排序条件
+        order_by = {"created_at": "desc"}  # 默认按创建时间倒序排序
+            
+        async with AsyncSessionLocal() as db:
+            try:
+                vio_words, total_count = await vio_word_crud.get_vio_words_by_filters(
+                    db, 
+                    filters=filters,
+                    order_by=order_by,
+                    page=page,
+                    page_size=page_size
+                )
+                
+                # 计算总页数
+                total_pages = (total_count + page_size - 1) // page_size
+                
+                return ApiResponse.success(
+                    data={
+                        "items": [word.to_dict() for word in vio_words],
+                        "total": total_count,
+                        "page": page,
+                        "page_size": page_size,
+                        "total_pages": total_pages
+                    },
+                    message="获取用户违规词检测记录成功"
+                )
+            except Exception as e:
+                logger.error(f"查询用户违规词检测记录失败: {str(e)}")
+                return ApiResponse.error(
+                    message="获取用户违规词检测记录失败",
+                    status_code=500
+                )
+    except Exception as e:
+        logger.error(f"获取用户违规词检测记录服务异常: {str(e)}")
+        return ApiResponse.error(
+            message="获取用户违规词检测记录失败",
+            status_code=500
         ) 

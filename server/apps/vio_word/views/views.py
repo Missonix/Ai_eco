@@ -90,12 +90,15 @@ async def vio_check(request: Request) -> Response:
 
     # 保存检测记录
     try:
+        # 处理 is_Violations 字段
+        is_violation = result.get("is_Violations") == "是"
+        
         vio_word_data = {
             "phone": phone,
             "input": input_text,
-            "is_violation": result.get("is_violation", False),
+            "is_violation": is_violation,
             "words": result.get("words", ""),
-            "reasons": result.get("reasons", ""),
+            "reasons": result.get("reason", ""),  # 注意：API返回的是 reason，而不是 reasons
             "op": result.get("op", ""),
             "ideas": result.get("ideas", ""),
             "old_score": result.get("old_score", 0),
@@ -146,6 +149,17 @@ async def get_vio_word(request: Request) -> Response:
     """
     from apps.vio_word.services import get_vio_word_service
     return await get_vio_word_service(request)
+
+@error_handler
+@request_logger
+# @auth_required
+# @admin_required
+async def get_vio_words_by_phone(request: Request) -> Response:
+    """
+    根据手机号搜索违规词检测记录
+    """
+    from apps.vio_word.services import get_vio_words_by_phone_service
+    return await get_vio_words_by_phone_service(request)
 
 
 

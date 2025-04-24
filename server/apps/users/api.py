@@ -1,6 +1,6 @@
 from robyn.robyn import Request
 from apps.users.queries import get_user, get_user_by_id, get_users_service
-from apps.users.services import create_user_service, delete_user_service, get_user_by_phone, update_user_field_service, update_user_service, get_token, check_token
+from apps.users.services import create_user_service, delete_user_service, get_user_by_phone, update_user_field_service, update_user_service, get_token, check_token, get_user_count_service
 
 """
     定义用户API接口
@@ -75,3 +75,61 @@ async def check_token_api(request: Request):
     检查token状态
     """
     return await check_token(request)
+
+
+async def create_admin_api(request: Request):
+    """
+    创建管理员
+    """
+    from apps.users.services import create_admin_service
+    return await create_admin_service(request)
+
+async def update_admin_api(request: Request):
+    """
+    更新管理员
+    """
+    from apps.users.services import update_admin_service
+    return await update_admin_service(request)
+
+async def delete_admin_api(request: Request):
+    """
+    删除管理员
+    """
+    from apps.users.services import delete_admin_service
+    return await delete_admin_service(request)
+
+async def get_admin_api(request: Request):
+    """
+    获取管理员
+    """
+    from apps.users.services import get_admin_service
+    return await get_admin_service(request)
+
+async def get_admins_api(request: Request):
+    """
+    获取所有管理员
+    """
+    from apps.users.services import get_admins_service
+    return await get_admins_service(request)
+
+async def login_admin_api(request: Request):
+    """
+    管理员登录
+    """
+    from apps.users.services import login_admin_service
+    return await login_admin_service(request)
+
+async def logout_admin_api(request: Request):
+    """
+    管理员登出
+    """
+    from apps.users.services import logout_admin_service
+    return await logout_admin_service(request)
+
+async def get_user_count_api(request: Request):
+    """
+    获取用户总数
+    """
+    from apps.users.services import get_user_count_service
+    return await get_user_count_service(request)
+    

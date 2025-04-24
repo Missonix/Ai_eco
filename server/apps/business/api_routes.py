@@ -41,6 +41,13 @@ from apps.business.api import (
 
     get_upload_error_orders_api,
     get_batch_generate_errors_api,
+
+    get_course_count,
+    get_ai_product_count,
+
+    get_entitlement_rule_count,
+    get_order_count,
+    get_user_entitlement_count
 )
 from apps.business.views import upload_orders_excel
 
@@ -99,3 +106,9 @@ def business_api_routes(app):
     app.add_route(route_type="GET", endpoint="/upload_error_orders", handler=get_upload_error_orders_api) # 获取上传错误订单
     app.add_route(route_type="GET", endpoint="/batch_generate_errors", handler=get_batch_generate_errors_api) # 获取批量生成权益错误
     
+    app.add_route(route_type="GET", endpoint="/courses/count", handler=get_course_count) # 获取课程总数
+    app.add_route(route_type="GET", endpoint="/ai_products/count", handler=get_ai_product_count) # 获取AI产品总数
+
+    app.add_route(route_type="GET", endpoint="/entitlement_rules/count", handler=get_entitlement_rule_count) # 获取权益规则总数
+    app.add_route(route_type="GET", endpoint="/orders/count", handler=get_order_count) # 获取订单总数
+    app.add_route(route_type="GET", endpoint="/user_entitlements/count", handler=get_user_entitlement_count) # 获取用户权益总数
