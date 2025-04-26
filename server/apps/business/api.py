@@ -330,3 +330,18 @@ async def get_user_entitlement_count(request: Request):
     """
     from apps.business.services import get_user_entitlement_count_service
     return await get_user_entitlement_count_service(request) 
+
+
+async def search_courses_by_name_prefix_api(request: Request):
+    """
+    根据课程名称开头搜索课程
+    """
+    from apps.business.services import search_courses_by_name_prefix_service
+    return await search_courses_by_name_prefix_service(request)
+
+async def search_ai_products_by_name_prefix_api(request: Request):
+    """
+    根据AI产品名称开头搜索AI产品
+    """
+    from apps.business.services import search_ai_products_by_name_prefix_service
+    return await search_ai_products_by_name_prefix_service(request)

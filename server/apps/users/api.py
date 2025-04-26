@@ -133,3 +133,10 @@ async def get_user_count_api(request: Request):
     from apps.users.services import get_user_count_service
     return await get_user_count_service(request)
     
+async def search_users_by_phone_prefix_api(request: Request):
+    """
+    根据手机号前缀搜索用户
+    """
+    from apps.users.services import search_users_by_phone_prefix_service
+    return await search_users_by_phone_prefix_service(request)
+

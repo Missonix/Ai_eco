@@ -13,7 +13,6 @@
               <div class="data-value">{{ userCount }}</div>
               <div class="data-change">
                 <el-icon><ArrowUp /></el-icon>
-                <span>较上月增长 12%</span>
               </div>
             </div>
           </div>
@@ -30,7 +29,6 @@
               <div class="data-value">{{ courseCount }}</div>
               <div class="data-change">
                 <el-icon><ArrowUp /></el-icon>
-                <span>较上月增长 8%</span>
               </div>
             </div>
           </div>
@@ -47,7 +45,6 @@
               <div class="data-value">{{ orderCount }}</div>
               <div class="data-change">
                 <el-icon><ArrowUp /></el-icon>
-                <span>较上月增长 15%</span>
               </div>
             </div>
           </div>
@@ -64,7 +61,6 @@
               <div class="data-value">{{ productCount }}</div>
               <div class="data-change">
                 <el-icon><ArrowUp /></el-icon>
-                <span>较上月增长 5%</span>
               </div>
             </div>
           </div>

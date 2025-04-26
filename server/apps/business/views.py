@@ -65,6 +65,7 @@ async def upload_orders_excel(request: Request) -> Response:
             async with AsyncSessionLocal() as db:
                 success_count = 0
                 error_count = 0
+                update_count = 0
                 error_messages = []
                 
                 for order in orders:
@@ -97,6 +98,7 @@ async def upload_orders_excel(request: Request) -> Response:
                         
                         # 转换is_refund为布尔值
                         is_refund_bool = True if is_refund == "已退款" else False
+                            
                         
                         # 转换purchase_time为datetime对象
                         try:
@@ -127,7 +129,16 @@ async def upload_orders_excel(request: Request) -> Response:
                         
                         # 检查订单号是否已存在
                         existing_order = await business_crud.get_order(db, order_id)
-                        if existing_order:
+                        if existing_order and existing_order.is_refund is False and is_refund_bool is True:
+                            # 更新订单状态
+                            update_order_data = {
+                                "is_refund": is_refund_bool
+                            }
+                            await business_crud.update_order(db, existing_order.order_id, update_order_data)
+                            update_count += 1
+                            success_count += 1
+                            continue
+                        elif existing_order and existing_order.is_refund is False and is_refund_bool is False:
                             error_message = f"订单 {order_id} 已存在"
                             error_messages.append(error_message)
                             error_count += 1
@@ -138,6 +149,17 @@ async def upload_orders_excel(request: Request) -> Response:
                             })
                             continue
                         
+                        if is_refund_bool is True:
+                            error_message = f"订单 {order_id} 已退款"
+                            error_messages.append(error_message)
+                            error_count += 1
+                            # 记录错误订单
+                            await business_crud.create_upload_error_order(db, {
+                                "order_id": order_id,
+                                "error_message": error_message
+                            })
+                            continue
+
                         # 准备订单数据
                         order_data = {
                             "order_id": order_id,
@@ -168,10 +190,11 @@ async def upload_orders_excel(request: Request) -> Response:
                     data={
                         "total": len(orders),
                         "success": success_count,
+                        "update": update_count,
                         "error": error_count,
                         "error_messages": error_messages
                     },
-                    message=f"成功导入 {success_count} 条订单数据，失败 {error_count} 条"
+                    message=f"成功导入 {success_count} 条订单数据，更新 {update_count} 条订单数据，失败 {error_count} 条"
                 )
                 
         except Exception as e:

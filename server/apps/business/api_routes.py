@@ -47,7 +47,10 @@ from apps.business.api import (
 
     get_entitlement_rule_count,
     get_order_count,
-    get_user_entitlement_count
+    get_user_entitlement_count,
+
+    search_courses_by_name_prefix_api,
+    search_ai_products_by_name_prefix_api
 )
 from apps.business.views import upload_orders_excel
 
@@ -59,7 +62,7 @@ def business_api_routes(app):
     
     app.add_route(route_type="POST", endpoint="/courses", handler=create_course_api) # 创建课程
     app.add_route(route_type="PATCH", endpoint="/courses/:course_id", handler=update_course_api) # 更新课程
-    app.add_route(route_type="POST", endpoint="/courses/search", handler=get_course_api) # 课程搜索
+    # app.add_route(route_type="POST", endpoint="/courses/search", handler=get_course_api) # 课程搜索
     app.add_route(route_type="DELETE", endpoint="/courses/:course_id", handler=delete_course_api) # 删除课程
     app.add_route(route_type="GET", endpoint="/courses", handler=get_all_courses_api) # 获取所有课程
     app.add_route(route_type="GET", endpoint="/courses/:course_id", handler=get_course_by_id_api) # 通过课程ID获取单个课程
@@ -112,3 +115,6 @@ def business_api_routes(app):
     app.add_route(route_type="GET", endpoint="/entitlement_rules/count", handler=get_entitlement_rule_count) # 获取权益规则总数
     app.add_route(route_type="GET", endpoint="/orders/count", handler=get_order_count) # 获取订单总数
     app.add_route(route_type="GET", endpoint="/user_entitlements/count", handler=get_user_entitlement_count) # 获取用户权益总数
+
+    app.add_route(route_type="POST", endpoint="/courses/search", handler=search_courses_by_name_prefix_api) # 根据课程名称开头搜索课程
+    app.add_route(route_type="POST", endpoint="/ai_products/search", handler=search_ai_products_by_name_prefix_api) # 根据AI产品名称开头搜索AI产品

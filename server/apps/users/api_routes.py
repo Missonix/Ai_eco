@@ -199,3 +199,15 @@ def users_api_routes(app):
         """
         from apps.users.api import get_user_count_api
         return await get_user_count_api(request)
+    
+
+    @app.post("/api/users/search")
+    @error_handler
+    @request_logger
+    @rate_limit(max_requests=100, time_window=60)
+    async def search_users_by_phone_prefix(request):
+        """
+        根据手机号前缀搜索用户
+        """
+        from apps.users.api import search_users_by_phone_prefix_api
+        return await search_users_by_phone_prefix_api(request)

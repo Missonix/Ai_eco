@@ -11,10 +11,7 @@
             <div class="data-info">
               <div class="data-title">用户总数</div>
               <div class="data-value">{{ userCount }}</div>
-              <div class="data-change">
-                <el-icon><ArrowUp /></el-icon>
-                <span>较上月增长 12%</span>
-              </div>
+              <div class="data-change"></div>
             </div>
           </div>
         </el-card>
@@ -28,10 +25,7 @@
             <div class="data-info">
               <div class="data-title">课程总数</div>
               <div class="data-value">{{ courseCount }}</div>
-              <div class="data-change">
-                <el-icon><ArrowUp /></el-icon>
-                <span>较上月增长 8%</span>
-              </div>
+              <div class="data-change"></div>
             </div>
           </div>
         </el-card>
@@ -45,10 +39,7 @@
             <div class="data-info">
               <div class="data-title">订单总数</div>
               <div class="data-value">{{ orderCount }}</div>
-              <div class="data-change">
-                <el-icon><ArrowUp /></el-icon>
-                <span>较上月增长 15%</span>
-              </div>
+              <div class="data-change"></div>
             </div>
           </div>
         </el-card>
@@ -66,10 +57,7 @@
             <div class="data-info">
               <div class="data-title">产品总数</div>
               <div class="data-value">{{ productCount }}</div>
-              <div class="data-change">
-                <el-icon><ArrowUp /></el-icon>
-                <span>较上月增长 5%</span>
-              </div>
+              <div class="data-change"></div>
             </div>
           </div>
         </el-card>
@@ -83,10 +71,7 @@
             <div class="data-info">
               <div class="data-title">权益规则总数</div>
               <div class="data-value">{{ entitlementCount }}</div>
-              <div class="data-change">
-                <el-icon><ArrowUp /></el-icon>
-                <span>较上月增长 10%</span>
-              </div>
+              <div class="data-change"></div>
             </div>
           </div>
         </el-card>
@@ -100,10 +85,7 @@
             <div class="data-info">
               <div class="data-title">用户权益总数</div>
               <div class="data-value">{{ userEntitlementCount }}</div>
-              <div class="data-change">
-                <el-icon><ArrowUp /></el-icon>
-                <span>较上月增长 20%</span>
-              </div>
+              <div class="data-change"></div>
             </div>
           </div>
         </el-card>

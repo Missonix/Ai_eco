@@ -29,36 +29,53 @@ export interface PaginatedResponse<T> {
   total_pages: number
 }
 
+export interface SearchCourseResponse {
+  code: number
+  message: string
+  data: {
+    items: Course[]
+    total: number
+    page: number
+    page_size: number
+    total_pages: number
+  }
+}
+
 export const courseApi = {
   // 创建课程
-  createCourse(data: CreateCourseRequest) {
+  createCourse: (data: { course_name: string }) => {
     return axios.post(`${BASE_URL}/courses`, data)
   },
 
   // 更新课程
-  updateCourse(courseId: string, data: UpdateCourseRequest) {
-    return axios.patch(`${BASE_URL}/courses/${courseId}`, data)
+  updateCourse: (courseId: string, data: { course_name: string }) => {
+    return axios.put(`${BASE_URL}/courses/${courseId}`, data)
   },
 
   // 获取所有课程
-  getAllCourses(page: number = 1, pageSize: number = 10) {
-    return axios.get<{ code: number; message: string; data: PaginatedResponse<Course> }>(
-      `${BASE_URL}/courses?page=${page}&page_size=${pageSize}`,
-    )
+  getAllCourses: (page: number, pageSize: number) => {
+    return axios.get(`${BASE_URL}/courses`, {
+      params: {
+        page,
+        page_size: pageSize,
+      },
+    })
   },
 
   // 获取单个课程
-  getCourse(courseId: string) {
+  getCourse: (courseId: string) => {
     return axios.get(`${BASE_URL}/courses/${courseId}`)
   },
 
-  // 搜索课程
-  searchCourse(data: SearchCourseRequest) {
-    return axios.post(`${BASE_URL}/courses/search`, data)
+  // 通过课程名称模糊搜索课程
+  searchCourse: (course_name_prefix: string) => {
+    return axios.post<SearchCourseResponse>(`${BASE_URL}/courses/search`, {
+      course_name_prefix,
+    })
   },
 
   // 删除课程
-  deleteCourse(courseId: string) {
+  deleteCourse: (courseId: string) => {
     return axios.delete(`${BASE_URL}/courses/${courseId}`)
   },
 }

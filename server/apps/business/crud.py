@@ -3,7 +3,7 @@ from sqlalchemy import select, update
 from sqlalchemy.sql import func
 from core.database import AsyncSessionLocal
 from core.logger import setup_logger
-from apps.business.models import Courses, Entitlement_rules, Orders, User_entitlements, Upload_error_orders, Batch_generate_entitlements_error
+from apps.business.models import Courses, Entitlement_rules, Orders, User_entitlements, Upload_error_orders, Batch_generate_entitlements_error, product_card
 from common.utils.dynamic_query import dynamic_query
 
 # 设置日志记录器
@@ -776,3 +776,107 @@ async def delete_batch_generate_error(db: AsyncSession, id: int):
     except Exception as e:
         await db.rollback()
         raise e
+
+
+
+# 产品卡片表操作
+async def get_product_card(db: AsyncSession, ai_product_id: str):
+    """
+    根据产品ID获取单个产品卡片
+    """
+    return await db.get(product_card, ai_product_id)
+
+async def create_product_card(db: AsyncSession, product_card_data: dict):
+    """
+    创建产品卡片
+    """
+    new_product_card = product_card(**product_card_data)
+    db.add(new_product_card)
+    await db.commit()
+    await db.refresh(new_product_card)
+    return new_product_card
+
+async def update_product_card(db: AsyncSession, ai_product_id: str, product_card_data: dict):
+    """
+    更新产品卡片
+    """
+    product_card_obj = await db.get(product_card, ai_product_id)
+    if product_card_obj is None:
+        raise Exception("Product card not found")
+    
+    for key, value in product_card_data.items():
+        setattr(product_card_obj, key, value)
+    
+    await db.commit()
+    await db.refresh(product_card_obj)
+    return product_card_obj
+
+async def delete_product_card(db: AsyncSession, ai_product_id: str):
+    """
+    删除产品卡片（逻辑删除）
+    """
+    product_card_obj = await db.get(product_card, ai_product_id)
+    if product_card_obj is None:
+        raise Exception("Product card not found")
+    
+    product_card_obj.is_deleted = True
+    await db.commit()
+    await db.refresh(product_card_obj)
+    return product_card_obj
+
+async def get_product_card_by_filter(db: AsyncSession, filters: dict):
+    """
+    根据过滤条件查询产品卡片
+    """
+    query = await dynamic_query(db, product_card, filters)
+    result = await db.execute(query)
+    return result.scalar_one_or_none()
+
+async def get_product_cards_by_filters(db: AsyncSession, filters=None, order_by=None, page: int = 1, page_size: int = 10):
+    """
+    批量查询产品卡片，支持分页
+    :param db: 数据库会话
+    :param filters: 过滤条件
+    :param order_by: 排序条件，如 {"created_at": "desc"}
+    :param page: 页码，从1开始
+    :param page_size: 每页数量
+    :return: (产品卡片列表, 总记录数)
+    """
+    try:
+        # 构建基础查询
+        query = await dynamic_query(db, product_card, filters, order_by)
+        
+        # 计算总记录数
+        count_query = select(func.count()).select_from(query.subquery())
+        total = await db.execute(count_query)
+        total_count = total.scalar()
+        
+        # 添加分页
+        offset = (page - 1) * page_size
+        query = query.offset(offset).limit(page_size)
+        
+        # 执行查询
+        result = await db.execute(query)
+        product_cards = result.scalars().all()
+        
+        return product_cards, total_count
+    except Exception as e:
+        logger.error(f"查询产品卡片列表失败: {str(e)}")
+        raise
+
+async def check_product_card_exists(ai_product_id: str) -> bool:
+    """
+    检查产品卡片是否已存在
+    :param ai_product_id: AI产品ID
+    :return: 是否存在
+    """
+    try:
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(product_card).where(product_card.ai_product_id == ai_product_id)
+            )
+            product_card_obj = result.scalar_one_or_none()
+            return product_card_obj is not None
+    except Exception as e:
+        logger.error(f"Error checking product card existence: {str(e)}")
+        raise

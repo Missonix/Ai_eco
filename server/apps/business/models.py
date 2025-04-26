@@ -156,6 +156,7 @@ class User_entitlements(Base):
 
     entitlement_id = Column(String(50), primary_key=True, index=True) # 用户权益id，唯一 主键
     phone = Column(VARCHAR(20), nullable=False) # 用户手机号
+    order_id = Column(String(50), nullable=True) # 订单ID
     rule_id = Column(String(50), nullable=False) # 权益规则ID
     course_name = Column(VARCHAR(20), nullable=False) # 关联课程名称
     product_name = Column(VARCHAR(20), nullable=False) # 权益产品名称
@@ -170,6 +171,7 @@ class User_entitlements(Base):
     def __repr__(self):
         return (f"User_entitlements(entitlement_id={self.entitlement_id}, "
                 f"phone={self.phone}, "
+                f"order_id={self.order_id}, "
                 f"rule_id={self.rule_id}, "
                 f"course_name={self.course_name}, "
                 f"ai_product_id={self.ai_product_id},"
@@ -187,6 +189,7 @@ class User_entitlements(Base):
             return {
                 "entitlement_id": self.entitlement_id,
                 "phone": self.phone,
+                "order_id": self.order_id,
                 "rule_id": self.rule_id,
                 "course_name": self.course_name,
                 "product_name": self.product_name,
@@ -264,5 +267,34 @@ class Batch_generate_entitlements_error(Base):
             logger.error(f"Error converting batch_generate_entitlements_error to dict: {str(e)}")
             return {}
     
+class product_card(Base):
+    """
+    产品卡片模型，用于定义产品卡片表
+    """
+    __tablename__ = 'product_card'
+    
+    ai_product_id = Column(String(50), primary_key=True, index=True) # ai产品id，唯一 主键
+    ai_product_name = Column(VARCHAR(20), nullable=False) # 产品名称
+    product_description = Column(VARCHAR(255), nullable=False) # 产品描述
+    created_at = Column(DateTime, default=datetime.utcnow) # 创建时间
+    is_deleted = Column(Boolean, default=False) # 是否删除(逻辑删除)
 
+    def __repr__(self):
+        return (f"product_card(ai_product_id={self.ai_product_id}, "
+                f"ai_product_name={self.ai_product_name}, "
+                f"product_description={self.product_description}, "
+                f"created_at={self.created_at}, is_deleted={self.is_deleted}")
+    
+    def to_dict(self):
+        """转换为字典"""
+        try:
+            return {
+                "ai_product_id": self.ai_product_id,
+                "ai_product_name": self.ai_product_name,
+                "product_description": self.product_description,
+                "created_at": self.created_at.isoformat() if self.created_at else None
+            }
+        except Exception as e:
+            logger.error(f"Error converting product_card to dict: {str(e)}")
+            return {}
 

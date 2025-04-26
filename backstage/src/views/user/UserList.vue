@@ -92,6 +92,7 @@ const searchPhone = ref('')
 const dialogVisible = ref(false)
 const dialogType = ref<'add' | 'edit'>('add')
 const currentUserId = ref('')
+const total = ref(0)
 
 // 表单
 const formRef = ref<FormInstance>()
@@ -134,8 +135,17 @@ const handleSearch = async () => {
   try {
     loading.value = true
     const res = await userApi.searchUserByPhone(searchPhone.value)
-    userList.value = [res.data.data]
+    if (res.data.code === 200) {
+      userList.value = res.data.data.items
+      total.value = res.data.data.total
+      if (userList.value.length === 0) {
+        ElMessage.info('未找到匹配的用户')
+      }
+    } else {
+      ElMessage.error(res.data.message || '搜索失败')
+    }
   } catch (error) {
+    console.error('搜索用户失败:', error)
     ElMessage.error('搜索用户失败')
   } finally {
     loading.value = false

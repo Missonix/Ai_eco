@@ -128,12 +128,18 @@ const handleSearch = async () => {
   }
   try {
     loading.value = true
-    const res = await productApi.getAllProducts()
-    productList.value = res.data.data.items.filter((product: AIProduct) =>
-      product.ai_product_name.includes(searchName.value),
-    )
-    total.value = productList.value.length
+    const res = await productApi.searchProduct(searchName.value)
+    if (res.data.code === 200) {
+      productList.value = res.data.data.items
+      total.value = res.data.data.total
+      if (productList.value.length === 0) {
+        ElMessage.info('未找到匹配的产品')
+      }
+    } else {
+      ElMessage.error(res.data.message || '搜索失败')
+    }
   } catch (error) {
+    console.error('搜索产品失败:', error)
     ElMessage.error('搜索产品失败')
   } finally {
     loading.value = false

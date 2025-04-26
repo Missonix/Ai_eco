@@ -948,6 +948,12 @@ async def create_order_service(request):
             
         # 转换is_refund为布尔值
         is_refund_bool = True if is_refund == "已退款" else False
+
+        if is_refund_bool is True:
+            return ApiResponse.error(
+                    message="退款订单无法创建",
+                    status_code=status_codes.HTTP_409_CONFLICT
+                )
         
         # 转换purchase_time为datetime对象
         try:
@@ -1362,7 +1368,7 @@ async def update_user_entitlement_service(request):
             return ApiResponse.validation_error("请求数据不能为空")
             
         # 只允许更新特定字段
-        allowed_fields = ["phone", "rule_id", "end_date", "daily_remaining", "is_active"]
+        allowed_fields = ["phone", "rule_id", "end_date", "daily_remaining", "is_active", "order_id"]
         update_data = {k: v for k, v in request_data.items() if k in allowed_fields}
         
         if not update_data:
@@ -1403,6 +1409,13 @@ async def update_user_entitlement_service(request):
                 except ValueError:
                     return ApiResponse.validation_error("end_date格式错误，应为ISO格式的日期时间字符串")
             
+            # 如果更新order_id，更新订单状态
+            if "order_id" in update_data:
+                update_order_data = {
+                    "is_generate": True,
+                    "is_refund": False
+                }
+                await business_crud.update_order(db, update_data["order_id"], update_order_data)
             try:
                 updated_entitlement = await business_crud.update_user_entitlement(db, entitlement_id, update_data)
                 return ApiResponse.success(
@@ -1523,6 +1536,8 @@ async def get_user_entitlements_by_filter_service(request):
             filters["entitlement_id"] = request_data["entitlement_id"]
         if "phone" in request_data:
             filters["phone"] = request_data["phone"]
+        if "order_id" in request_data:
+            filters["order_id"] = request_data["order_id"]
         if "rule_id" in request_data:
             filters["rule_id"] = request_data["rule_id"]
         if "course_name" in request_data:
@@ -1848,7 +1863,21 @@ async def generate_user_entitlement_from_order_service(request):
                 return ApiResponse.not_found("订单不存在")
                 
             # 检查订单是否已生成权益
-            if order.is_generate:
+            if order.is_generate is True and order.is_refund is True:
+                entitlement = await business_crud.get_user_entitlement_by_filter(db, {"order_id": order_id, "is_deleted": False})
+                if entitlement:
+                    # 更新用户权益状态
+                    update_entitlement_data = {
+                        "is_active": False,
+                        "is_deleted": True
+                    }
+                    await business_crud.update_user_entitlement(db, entitlement.entitlement_id, update_entitlement_data)
+                    await business_crud.update_order(db, order_id, {"is_generate": False})
+                    return ApiResponse.success(
+                        message="用户权益已更新至失效",
+                        data=entitlement.to_dict()
+                    )
+            elif order.is_generate is True and order.is_refund is False:
                 return ApiResponse.error(
                     message="该订单已生成用户权益",
                     status_code=status_codes.HTTP_409_CONFLICT
@@ -1874,6 +1903,7 @@ async def generate_user_entitlement_from_order_service(request):
             entitlement_data = {
                 "entitlement_id": generate_entitlement_id(),
                 "phone": order.phone,
+                "order_id": order_id,
                 "rule_id": rule.rule_id,
                 "course_name": rule.course_name,
                 "product_name": rule.product_name,
@@ -1917,19 +1947,32 @@ async def batch_generate_user_entitlements_service(request):
     try:
         async with AsyncSessionLocal() as db:
             # 获取所有未生成权益的订单，不使用分页
-            filters = {
+            filters1 = {
                 "is_generate": False,
                 "is_deleted": False
             }
             # 使用 get_orders_by_filters 函数，但设置 page_size 为一个大数以确保获取所有记录
             orders, total_count = await business_crud.get_orders_by_filters(
                 db, 
-                filters=filters,
+                filters=filters1,
+                page=1,
+                page_size=10000  # 设置一个足够大的数来获取所有记录
+            )
+            # 更新退款订单的用户权益
+            filters2 = {
+                "is_generate": True,
+                "is_refund": True,
+                "is_deleted": False
+            }
+            # 使用 get_orders_by_filters 函数，但设置 page_size 为一个大数以确保获取所有记录
+            orders2, total_count2 = await business_crud.get_orders_by_filters(
+                db, 
+                filters=filters2,
                 page=1,
                 page_size=10000  # 设置一个足够大的数来获取所有记录
             )
             
-            if not orders:
+            if not orders and not orders2:
                 return ApiResponse.success(
                     message="没有需要生成权益的订单",
                     data={
@@ -1942,6 +1985,7 @@ async def batch_generate_user_entitlements_service(request):
             
             success_count = 0
             error_count = 0
+            update_count = 0
             error_messages = []
             
             for order in orders:
@@ -1982,6 +2026,7 @@ async def batch_generate_user_entitlements_service(request):
                     entitlement_data = {
                         "entitlement_id": generate_entitlement_id(),
                         "phone": order.phone,
+                        "order_id": order.order_id,
                         "rule_id": rule.rule_id,
                         "course_name": rule.course_name,
                         "product_name": rule.product_name,
@@ -2012,18 +2057,39 @@ async def batch_generate_user_entitlements_service(request):
                         "error_message": error_message
                     })
                     continue
+
+            # 更新退款订单的用户权益
+            for order in orders2:
+                entitlement = await business_crud.get_user_entitlement_by_filter(db, {"order_id": order.order_id, "is_deleted": False})
+                if entitlement:
+                    await business_crud.update_user_entitlement(db, entitlement.entitlement_id, {"is_active": False, "is_deleted": True})
+                    await business_crud.update_order(db, order.order_id, {"is_generate": False})
+                    success_count += 1
+                    update_count += 1   
+                else:
+                    error_message = f"订单 {order.order_id} 未找到对应的权益"
+                    error_messages.append(error_message)
+                    error_count += 1
+                    # 记录错误
+                    await business_crud.create_batch_generate_error(db, {
+                        "order_id": order.order_id,
+                        "error_message": error_message
+                    })
+
             
             # 返回处理结果
             return ApiResponse.success(
                 data={
-                    "total": total_count,
+                    "total": total_count + total_count2,
                     "success": success_count,
+                    "update": update_count,
                     "error": error_count,
                     "error_messages": error_messages
                 },
-                message=f"成功生成 {success_count} 条用户权益，失败 {error_count} 条"
+                message=f"成功生成 {success_count} 条用户权益，更新 {update_count} 条用户权益，失败 {error_count} 条"
             )
-            
+        
+        
     except Exception as e:
         logger.error(f"批量生成用户权益服务异常: {str(e)}")
         return ApiResponse.error(
@@ -2303,6 +2369,434 @@ async def get_user_entitlement_count_service(request: Request) -> Response:
         logger.error(f"获取用户权益总数失败: {str(e)}")
         return ApiResponse.error(
             message="获取用户权益总数失败",
+            status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+# 根据课程名称开头搜索课程
+async def search_courses_by_name_prefix_service(request):
+    """
+    根据课程名称开头搜索课程服务
+    """
+    try:
+        request_data = request.json()
+        course_name_prefix = request_data.get("course_name_prefix")
+        
+        if not course_name_prefix:
+            return ApiResponse.validation_error("课程名称前缀不能为空")
+            
+        # 获取分页参数
+        try:
+            page = int(request.query_params.get("page", "1"))
+            page_size = int(request.query_params.get("page_size", "10"))
+        except ValueError:
+            page = 1
+            page_size = 10
+        
+        # 验证分页参数
+        if page < 1:
+            page = 1
+        if page_size < 1 or page_size > 100:
+            page_size = 10
+            
+        async with AsyncSessionLocal() as db:
+            # 获取所有课程
+            courses, total_count = await business_crud.get_courses_by_filters(
+                db, 
+                filters={"is_deleted": False},
+                page=1,
+                page_size=10000  # 设置一个足够大的数来获取所有记录
+            )
+            
+            # 过滤出课程名称以指定前缀开头的课程
+            filtered_courses = [
+                course for course in courses 
+                if course.course_name.lower().startswith(course_name_prefix.lower())
+            ]
+            
+            # 计算总记录数
+            total_count = len(filtered_courses)
+            
+            # 手动分页
+            start_idx = (page - 1) * page_size
+            end_idx = start_idx + page_size
+            paginated_courses = filtered_courses[start_idx:end_idx]
+            
+            # 计算总页数
+            total_pages = (total_count + page_size - 1) // page_size
+            
+            return ApiResponse.success(
+                data={
+                    "items": [course.to_dict() for course in paginated_courses],
+                    "total": total_count,
+                    "page": page,
+                    "page_size": page_size,
+                    "total_pages": total_pages
+                },
+                message="搜索课程成功"
+            )
+    except Exception as e:
+        logger.error(f"搜索课程失败: {str(e)}")
+        return ApiResponse.error(
+            message="搜索课程失败",
+            status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+# 根据AI产品名称开头搜索AI产品
+async def search_ai_products_by_name_prefix_service(request):
+    """
+    根据AI产品名称开头搜索AI产品服务
+    """
+    try:
+        request_data = request.json()
+        product_name_prefix = request_data.get("product_name_prefix")
+        
+        if not product_name_prefix:
+            return ApiResponse.validation_error("AI产品名称前缀不能为空")
+            
+        # 获取分页参数
+        try:
+            page = int(request.query_params.get("page", "1"))
+            page_size = int(request.query_params.get("page_size", "10"))
+        except ValueError:
+            page = 1
+            page_size = 10
+        
+        # 验证分页参数
+        if page < 1:
+            page = 1
+        if page_size < 1 or page_size > 100:
+            page_size = 10
+            
+        async with AsyncSessionLocal() as db:
+            # 获取所有AI产品
+            products, total_count = await business_crud.get_ai_products_by_filters(
+                db, 
+                filters={"is_deleted": False},
+                page=1,
+                page_size=10000  # 设置一个足够大的数来获取所有记录
+            )
+            
+            # 过滤出AI产品名称以指定前缀开头的产品
+            filtered_products = [
+                product for product in products 
+                if product.ai_product_name.lower().startswith(product_name_prefix.lower())
+            ]
+            
+            # 计算总记录数
+            total_count = len(filtered_products)
+            
+            # 手动分页
+            start_idx = (page - 1) * page_size
+            end_idx = start_idx + page_size
+            paginated_products = filtered_products[start_idx:end_idx]
+            
+            # 计算总页数
+            total_pages = (total_count + page_size - 1) // page_size
+            
+            return ApiResponse.success(
+                data={
+                    "items": [product.to_dict() for product in paginated_products],
+                    "total": total_count,
+                    "page": page,
+                    "page_size": page_size,
+                    "total_pages": total_pages
+                },
+                message="搜索AI产品成功"
+            )
+    except Exception as e:
+        logger.error(f"搜索AI产品失败: {str(e)}")
+        return ApiResponse.error(
+            message="搜索AI产品失败",
+            status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+async def create_product_card_service(request):
+    """
+    创建产品卡片服务
+    """
+    try:
+        product_data = request.json()
+        ai_product_name = product_data.get("ai_product_name")
+        product_description = product_data.get("product_description")
+        
+        if not ai_product_name or not product_description:
+            return ApiResponse.validation_error("产品名称和产品描述不能为空")
+            
+        async with AsyncSessionLocal() as db:
+            try:
+                # 检查产品名称是否存在于AI产品表中
+                existing_ai_product = await business_crud.get_ai_product_by_filter(
+                    db, 
+                    {"ai_product_name": ai_product_name, "is_deleted": False}
+                )
+                
+                if not existing_ai_product:
+                    return ApiResponse.error(
+                        message="产品名称不存在于AI产品表中",
+                        status_code=status_codes.HTTP_404_NOT_FOUND
+                    )
+                
+                # 检查产品卡片是否已存在
+                existing_card = await business_crud.get_product_card_by_filter(
+                    db,
+                    {"ai_product_id": existing_ai_product.ai_product_id, "is_deleted": False}
+                )
+                
+                if existing_card:
+                    return ApiResponse.error(
+                        message="产品卡片已存在",
+                        status_code=status_codes.HTTP_409_CONFLICT
+                    )
+                
+                # 检查产品卡片是否被逻辑删除
+                existing_card = await business_crud.get_product_card_by_filter(
+                    db,
+                    {"ai_product_id": existing_ai_product.ai_product_id, "is_deleted": True}
+                )
+                
+                if existing_card:
+                    update_product_card_data = {
+                        "product_description": product_description,
+                        "is_deleted": False
+                    }
+                    updated_card = await business_crud.update_product_card(db, existing_card.ai_product_id, update_product_card_data)
+                    return ApiResponse.success(
+                        data=updated_card.to_dict(),
+                        message="产品卡片更新成功"
+                    )
+                
+                # 创建产品卡片
+                card_data = {
+                    "ai_product_id": existing_ai_product.ai_product_id,
+                    "ai_product_name": ai_product_name,
+                    "product_description": product_description,
+                    "is_deleted": False
+                }
+                
+                new_card = await business_crud.create_product_card(db, card_data)
+                return ApiResponse.success(
+                    data=new_card.to_dict(),
+                    message="产品卡片创建成功"
+                )
+            except Exception as e:
+                logger.error(f"创建产品卡片失败: {str(e)}")
+                await db.rollback()
+                return ApiResponse.error(
+                    message="创建产品卡片失败",
+                    status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+                
+    except Exception as e:
+        logger.error(f"创建产品卡片服务异常: {str(e)}")
+        return ApiResponse.error(
+            message="创建产品卡片失败",
+            status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+async def update_product_card_service(request):
+    """
+    更新产品卡片服务（只能更新产品描述）
+    """
+    try:
+        ai_product_id = request.path_params.get("ai_product_id")
+        request_data = request.json()
+        
+        if not ai_product_id:
+            return ApiResponse.validation_error("产品ID不能为空")
+            
+        if not request_data or "product_description" not in request_data:
+            return ApiResponse.validation_error("产品描述不能为空")
+            
+        async with AsyncSessionLocal() as db:
+            # 检查产品卡片是否存在
+            card = await business_crud.get_product_card(db, ai_product_id)
+            if not card:
+                return ApiResponse.not_found("产品卡片不存在")
+            
+            try:
+                # 只更新产品描述
+                update_data = {"product_description": request_data["product_description"]}
+                updated_card = await business_crud.update_product_card(db, ai_product_id, update_data)
+                return ApiResponse.success(
+                    data=updated_card.to_dict(),
+                    message="产品卡片更新成功"
+                )
+            except Exception as e:
+                logger.error(f"更新产品卡片失败: {str(e)}")
+                return ApiResponse.error(
+                    message="更新产品卡片失败",
+                    status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+                
+    except Exception as e:
+        logger.error(f"更新产品卡片服务异常: {str(e)}")
+        return ApiResponse.error(
+            message="更新产品卡片失败",
+            status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+async def delete_product_card_service(request):
+    """
+    逻辑删除产品卡片服务
+    """
+    try:
+        ai_product_id = request.path_params.get("ai_product_id")
+        
+        if not ai_product_id:
+            return ApiResponse.validation_error("产品ID不能为空")
+            
+        async with AsyncSessionLocal() as db:
+            # 检查产品卡片是否存在
+            card = await business_crud.get_product_card(db, ai_product_id)
+            if not card:
+                return ApiResponse.not_found("产品卡片不存在")
+            
+            try:
+                deleted_card = await business_crud.delete_product_card(db, ai_product_id)
+                return ApiResponse.success(
+                    data=deleted_card.to_dict(),
+                    message="产品卡片删除成功"
+                )
+            except Exception as e:
+                logger.error(f"删除产品卡片失败: {str(e)}")
+                return ApiResponse.error(
+                    message="删除产品卡片失败",
+                    status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+                
+    except Exception as e:
+        logger.error(f"删除产品卡片服务异常: {str(e)}")
+        return ApiResponse.error(
+            message="删除产品卡片失败",
+            status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+async def get_all_product_cards_service(request):
+    """
+    获取所有产品卡片服务，支持分页
+    """
+    try:
+        # 获取分页参数
+        try:
+            page = int(request.query_params.get("page", "1"))
+            page_size = int(request.query_params.get("page_size", "10"))
+        except ValueError:
+            return ApiResponse.validation_error("分页参数必须是整数")
+            
+        if page < 1 or page_size < 1:
+            return ApiResponse.validation_error("分页参数必须大于0")
+            
+        async with AsyncSessionLocal() as db:
+            try:
+                # 获取所有未删除的产品卡片
+                cards, total_count = await business_crud.get_product_cards_by_filters(
+                    db,
+                    filters={"is_deleted": False},
+                    order_by={"created_at": "desc"},
+                    page=page,
+                    page_size=page_size
+                )
+                
+                # 转换为字典列表
+                cards_list = [card.to_dict() for card in cards]
+                
+                return ApiResponse.success(
+                    data={
+                        "items": cards_list,
+                        "total": total_count,
+                        "page": page,
+                        "page_size": page_size
+                    },
+                    message="获取产品卡片列表成功"
+                )
+            except Exception as e:
+                logger.error(f"获取产品卡片列表失败: {str(e)}")
+                return ApiResponse.error(
+                    message="获取产品卡片列表失败",
+                    status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+                
+    except Exception as e:
+        logger.error(f"获取产品卡片列表服务异常: {str(e)}")
+        return ApiResponse.error(
+            message="获取产品卡片列表失败",
+            status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+async def generate_product_card_from_ai_product_service(request):
+    """
+    从AI产品生成产品卡片服务
+    """
+    try:
+        request_data = request.json()
+        ai_product_id = request_data.get("ai_product_id")
+        product_description = request_data.get("product_description")
+        
+        if not ai_product_id or not product_description:
+            return ApiResponse.validation_error("AI产品ID和产品描述不能为空")
+            
+        async with AsyncSessionLocal() as db:
+            try:
+                # 检查AI产品是否存在
+                ai_product = await business_crud.get_ai_product(db, ai_product_id)
+                if not ai_product:
+                    return ApiResponse.not_found("AI产品不存在")
+                
+                # 检查产品卡片是否已存在
+                existing_card = await business_crud.get_product_card_by_filter(
+                    db,
+                    {"ai_product_id": ai_product_id, "is_deleted": False}
+                )
+                
+                if existing_card:
+                    return ApiResponse.error(
+                        message="该AI产品已存在产品卡片",
+                        status_code=status_codes.HTTP_409_CONFLICT
+                    )
+                
+                # 检查产品卡片是否被逻辑删除
+                existing_deleted_card = await business_crud.get_product_card_by_filter(
+                    db,
+                    {"ai_product_id": ai_product_id, "is_deleted": True}
+                )
+                
+                if existing_deleted_card:
+                    # 如果存在被删除的卡片，则恢复并更新描述
+                    update_data = {
+                        "product_description": product_description,
+                        "is_deleted": False
+                    }
+                    updated_card = await business_crud.update_product_card(db, ai_product_id, update_data)
+                    return ApiResponse.success(
+                        data=updated_card.to_dict(),
+                        message="产品卡片已恢复并更新"
+                    )
+                
+                # 创建新的产品卡片
+                card_data = {
+                    "ai_product_id": ai_product_id,
+                    "ai_product_name": ai_product.ai_product_name,
+                    "product_description": product_description,
+                    "is_deleted": False
+                }
+                
+                new_card = await business_crud.create_product_card(db, card_data)
+                return ApiResponse.success(
+                    data=new_card.to_dict(),
+                    message="产品卡片创建成功"
+                )
+            except Exception as e:
+                logger.error(f"生成产品卡片失败: {str(e)}")
+                await db.rollback()
+                return ApiResponse.error(
+                    message="生成产品卡片失败",
+                    status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+                
+    except Exception as e:
+        logger.error(f"生成产品卡片服务异常: {str(e)}")
+        return ApiResponse.error(
+            message="生成产品卡片失败",
             status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
         )
 

@@ -24,31 +24,53 @@ export interface PaginatedResponse<T> {
   total_pages: number
 }
 
+export interface SearchProductResponse {
+  code: number
+  message: string
+  data: {
+    items: AIProduct[]
+    total: number
+    page: number
+    page_size: number
+    total_pages: number
+  }
+}
+
 export const productApi = {
   // 创建产品
-  createProduct(data: CreateAIProductRequest) {
+  createProduct: (data: CreateAIProductRequest) => {
     return axios.post(`${BASE_URL}/ai_products`, data)
   },
 
   // 更新产品
-  updateProduct(productId: string, data: UpdateAIProductRequest) {
-    return axios.patch(`${BASE_URL}/ai_products/${productId}`, data)
+  updateProduct: (productId: string, data: UpdateAIProductRequest) => {
+    return axios.put(`${BASE_URL}/ai_products/${productId}`, data)
   },
 
   // 获取所有产品
-  getAllProducts(page: number = 1, pageSize: number = 10) {
-    return axios.get<{ code: number; message: string; data: PaginatedResponse<AIProduct> }>(
-      `${BASE_URL}/ai_products?page=${page}&page_size=${pageSize}`,
-    )
+  getAllProducts: (page: number, pageSize: number) => {
+    return axios.get(`${BASE_URL}/ai_products`, {
+      params: {
+        page,
+        page_size: pageSize,
+      },
+    })
   },
 
   // 获取单个产品
-  getProduct(productId: string) {
+  getProduct: (productId: string) => {
     return axios.get(`${BASE_URL}/ai_products/${productId}`)
   },
 
   // 删除产品
-  deleteProduct(productId: string) {
+  deleteProduct: (productId: string) => {
     return axios.delete(`${BASE_URL}/ai_products/${productId}`)
+  },
+
+  // 通过产品名称模糊搜索产品
+  searchProduct: (product_name_prefix: string) => {
+    return axios.post<SearchProductResponse>(`${BASE_URL}/ai_products/search`, {
+      product_name_prefix,
+    })
   },
 }

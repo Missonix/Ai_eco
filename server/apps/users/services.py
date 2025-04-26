@@ -947,56 +947,15 @@ async def logout_admin_service(request):
     管理员退出登录服务
     """
     try:
-        # 从请求头获取token
-        auth_header = request.headers.get("Authorization")
-        logger.info(f"Authorization header: {auth_header}")
+        # 创建响应
+        response = ApiResponse.success(message="退出登录成功")
         
-        if not auth_header:
-            logger.warning("No Authorization header found")
-            return ApiResponse.unauthorized("未找到访问令牌")
-            
-        # 处理Bearer token
-        if auth_header.startswith("Bearer "):
-            token = auth_header.split(" ")[1]
-            logger.info(f"Extracted Bearer token: {token}")
-        else:
-            token = auth_header
-            logger.info(f"Using raw token: {token}")
-            
-        if not token:
-            logger.warning("No token found after processing")
-            return ApiResponse.unauthorized("未找到访问令牌")
-            
-        try:
-            payload = TokenService.decode_token(token)
-            logger.info(f"Decoded token payload: {payload}")
-            
-            if not payload:
-                logger.warning("Failed to decode token")
-                return ApiResponse.unauthorized("无效的访问令牌")
-                
-            # 验证是否是管理员token
-            if payload.get("type") != "access" or not payload.get("admin_id"):
-                logger.warning(f"Invalid token type or missing admin_id: {payload}")
-                return ApiResponse.unauthorized("无效的管理员令牌")
-            
-            # 将令牌加入黑名单
-            TokenService.revoke_token(token)
-            logger.info("Token successfully revoked")
-            
-            # 创建响应
-            response = ApiResponse.success(message="退出登录成功")
-            
-            # 清除Cookie中的访问令牌
-            response.headers["Set-Cookie"] = (
-                "access_token=; HttpOnly; Secure; Path=/; SameSite=Strict; Max-Age=0"
-            )
-            
-            return response
-            
-        except Exception as token_error:
-            logger.error(f"Token processing error: {str(token_error)}")
-            return ApiResponse.unauthorized("令牌处理失败")
+        # 清除Cookie中的访问令牌
+        response.headers["Set-Cookie"] = (
+            "access_token=; HttpOnly; Secure; Path=/; SameSite=Strict; Max-Age=0"
+        )
+        
+        return response
             
     except Exception as e:
         logger.error(f"Error processing admin logout: {str(e)}")
@@ -1029,5 +988,69 @@ async def get_user_count_service(request):
         logger.error(f"获取用户总数失败: {str(e)}")
         return ApiResponse.error(
             message="获取用户总数失败",
+            status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+# 根据手机号开头搜索用户
+async def search_users_by_phone_prefix_service(request):
+    """
+    根据手机号开头搜索用户服务
+    """
+    try:
+        request_data = request.json()
+        phone_prefix = request_data.get("phone_prefix")
+        
+        if not phone_prefix:
+            return ApiResponse.validation_error("手机号前缀不能为空")
+            
+        # 获取分页参数
+        try:
+            page = int(request.query_params.get("page", "1"))
+            page_size = int(request.query_params.get("page_size", "10"))
+        except ValueError:
+            page = 1
+            page_size = 10
+        
+        # 验证分页参数
+        if page < 1:
+            page = 1
+        if page_size < 1 or page_size > 100:
+            page_size = 10
+            
+        async with AsyncSessionLocal() as db:
+            # 获取所有用户
+            users = await crud.get_users_by_filters(db, {"is_deleted": False})
+            
+            # 过滤出手机号以指定前缀开头的用户
+            filtered_users = [
+                user for user in users 
+                if user.phone.startswith(phone_prefix)
+            ]
+            
+            # 计算总记录数
+            total_count = len(filtered_users)
+            
+            # 手动分页
+            start_idx = (page - 1) * page_size
+            end_idx = start_idx + page_size
+            paginated_users = filtered_users[start_idx:end_idx]
+            
+            # 计算总页数
+            total_pages = (total_count + page_size - 1) // page_size
+            
+            return ApiResponse.success(
+                data={
+                    "items": [user.to_dict() for user in paginated_users],
+                    "total": total_count,
+                    "page": page,
+                    "page_size": page_size,
+                    "total_pages": total_pages
+                },
+                message="搜索用户成功"
+            )
+    except Exception as e:
+        logger.error(f"搜索用户失败: {str(e)}")
+        return ApiResponse.error(
+            message="搜索用户失败",
             status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
         )

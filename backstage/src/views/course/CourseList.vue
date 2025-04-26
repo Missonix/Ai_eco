@@ -129,10 +129,18 @@ const handleSearch = async () => {
   }
   try {
     loading.value = true
-    const res = await courseApi.searchCourse({ course_name: searchName.value })
-    courseList.value = [res.data.data]
-    total.value = 1
+    const res = await courseApi.searchCourse(searchName.value)
+    if (res.data.code === 200) {
+      courseList.value = res.data.data.items
+      total.value = res.data.data.total
+      if (courseList.value.length === 0) {
+        ElMessage.info('未找到匹配的课程')
+      }
+    } else {
+      ElMessage.error(res.data.message || '搜索失败')
+    }
   } catch (error) {
+    console.error('搜索课程失败:', error)
     ElMessage.error('搜索课程失败')
   } finally {
     loading.value = false
