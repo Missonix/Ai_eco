@@ -254,8 +254,15 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import type { FormInstance } from 'element-plus'
-import { orderApi, type Order, type CreateOrderRequest, type SearchOrderRequest } from '@/api/order'
+import type { FormInstance, UploadProgressEvent } from 'element-plus'
+import {
+  orderApi,
+  type Order,
+  type CreateOrderRequest,
+  type SearchOrderRequest,
+  type UploadError,
+  type GenerateError,
+} from '@/api/order'
 import axios from 'axios'
 import type { UploadRequestOptions } from 'element-plus'
 import type { AxiosProgressEvent } from 'axios'
@@ -327,7 +334,7 @@ const generateResult = ref({
 
 // 上传失败记录
 const uploadErrorVisible = ref(false)
-const uploadErrors = ref<any[]>([])
+const uploadErrors = ref<UploadError[]>([])
 const loadingUploadErrors = ref(false)
 const uploadErrorPage = ref(1)
 const uploadErrorPageSize = ref(10)
@@ -335,7 +342,7 @@ const uploadErrorTotal = ref(0)
 
 // 生成失败记录
 const generateErrorVisible = ref(false)
-const generateErrors = ref<any[]>([])
+const generateErrors = ref<GenerateError[]>([])
 const loadingGenerateErrors = ref(false)
 const generateErrorPage = ref(1)
 const generateErrorPageSize = ref(10)
@@ -419,7 +426,7 @@ const handleEdit = (row: Order) => {
     phone: row.phone,
     course_name: '',
     purchase_time: row.purchase_time,
-    is_refund: row.is_refund,
+    is_refund: row.is_refund ? '已退款' : '无',
   }
   dialogVisible.value = true
 }
@@ -559,13 +566,20 @@ const customUpload = async (options: UploadRequestOptions) => {
       },
       onUploadProgress: (e: AxiosProgressEvent) => {
         if (e.total) {
-          onProgress({ percent: Math.round((e.loaded * 100) / e.total) })
+          onProgress({ percent: Math.round((e.loaded * 100) / e.total) } as UploadProgressEvent)
         }
       },
     })
     onSuccess(response.data)
-  } catch (error) {
-    onError(error)
+  } catch (error: unknown) {
+    const uploadError = {
+      status: 500,
+      method: 'post',
+      url: `${BASE_URL}/orders/upload`,
+      name: 'UploadError',
+      message: error instanceof Error ? error.message : '上传失败',
+    }
+    onError(uploadError)
   }
 }
 

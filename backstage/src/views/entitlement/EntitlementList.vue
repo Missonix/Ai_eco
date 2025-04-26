@@ -179,7 +179,8 @@ const fetchRuleList = async () => {
     loading.value = true
     const res = await entitlementApi.getAllRules()
     ruleList.value = res.data.data
-  } catch (error) {
+  } catch (error: unknown) {
+    console.error('获取权益规则列表失败:', error)
     ElMessage.error('获取权益规则列表失败')
   } finally {
     loading.value = false
@@ -220,7 +221,7 @@ const handleSearch = async () => {
         }
         return acc
       },
-      {} as Record<string, any>,
+      {} as Record<string, string | number | undefined>,
     )
 
     // 如果没有任何搜索条件，则获取所有规则
@@ -230,7 +231,7 @@ const handleSearch = async () => {
     }
 
     // 确保规则ID搜索参数正确传递
-    if (searchParams.rule_id) {
+    if (searchParams.rule_id && typeof searchParams.rule_id === 'string') {
       searchParams.rule_id = searchParams.rule_id.trim()
     }
 
@@ -246,7 +247,7 @@ const handleSearch = async () => {
     } else {
       ElMessage.error(res.data.message || '搜索失败')
     }
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('搜索失败:', error)
     ElMessage.error('搜索权益规则失败')
   } finally {
@@ -330,7 +331,8 @@ const handleSubmit = async () => {
         }
         dialogVisible.value = false
         await fetchRuleList()
-      } catch (error) {
+      } catch (error: unknown) {
+        console.error('操作失败:', error)
         ElMessage.error(dialogType.value === 'add' ? '创建失败' : '更新失败')
       }
     }

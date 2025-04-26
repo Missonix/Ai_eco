@@ -27,9 +27,12 @@ export interface UpdateEntitlementRuleRequest {
 export interface SearchEntitlementRuleRequest {
   rule_id?: string
   course_id?: string
+  course_name?: string
   ai_product_id?: string
+  product_name?: string
   daily_limit?: number
   validity_days?: number
+  created_at?: string
 }
 
 export const entitlementApi = {

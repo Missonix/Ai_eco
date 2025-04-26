@@ -32,6 +32,18 @@ export interface SearchOrderRequest {
   is_refund?: string
 }
 
+export interface UploadError {
+  order_id: string
+  error_message: string
+  created_at: string
+}
+
+export interface GenerateError {
+  order_id: string
+  error_message: string
+  created_at: string
+}
+
 export interface PaginatedResponse<T> {
   items: T[]
   total: number
